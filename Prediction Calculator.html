@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Couriway Prediction Calculator</title>
+  <style>
+    :root {
+      --bg: #0b0f16;
+      --panel: #111827;
+      --panel-elev: #0f172a;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --border: #1f2937;
+      --error: #fca5a5;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      margin: 2rem;
+      background: radial-gradient(1200px 800px at 20% -10%, #0f172a 0%, var(--bg) 60%);
+      color: var(--text);
+    }
+    .page-title {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      color: #fff;
+    }
+    .controls, .card {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-elev) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 1.25rem;
+      max-width: 1200px;
+      margin: 0 auto 1.25rem auto;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .controls label { font-weight: 600; color: var(--text); }
+    .controls input[type="number"] {
+      width: 170px;
+      padding: 0.5rem 0.7rem;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    .controls input::placeholder { color: #6b7280; }
+    .controls button {
+      padding: 0.55rem 1rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
+      color: #fff;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.15s ease;
+    }
+    .controls button:hover { filter: brightness(1.08); }
+    .controls button:active { transform: translateY(1px); }
+    .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+    h1, h2, h3 { margin: 0 0 0.25rem 0; }
+    h2 { font-size: 1.3rem; }
+    .status { font-size: 0.95rem; margin-bottom: 0.75rem; color: var(--muted); }
+    .metric { font-weight: 700; margin-bottom: 0.45rem; color: var(--text); }
+    .spacer { height: 12px; }
+    .error { color: var(--error); white-space: pre-wrap; }
+    .toggle-btn {
+      display: inline-block;
+      margin: 0.5rem 0;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      background: #0b1220;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .toggle-btn:hover { background: #0e1526; }
+    .table-container { margin-top: 1rem; }
+    .collapsed { display: none; }
+    .hidden { display: none; }
+
+    /* Google Table dark theming */
+    .google-visualization-table-table,
+    .google-visualization-table-table * {
+      color: var(--text) !important;
+      background: transparent !important;
+      border-color: var(--border) !important;
+    }
+    .google-visualization-table-tr-even { background: rgba(255,255,255,0.03) !important; }
+    .google-visualization-table-tr-odd { background: rgba(255,255,255,0.015) !important; }
+    .google-visualization-table-th { font-weight: 700 !important; }
+    .google-visualization-table-div-page { color: var(--muted) !important; }
+  </style>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <script>
+    const SPREADSHEET_ID = "1Tyw9fwdZgsHJoHzlE-0LPSEDOduRkZwL2UUNA-_4Xo4";
+    const GID_PROCESSED = "1760430564";
+    const GID_SECOND = "1885267609";
+
+    let chartsReady = false;
+    let t1Ready = false;
+    let t2Ready = false;
+
+    // Storage for stitching
+    let t1Rows = []; // {date, igt, run}
+    let t2Map = new Map(); // runNum(int) -> { predNum: number|null, predQ: string }
+    let stitchedRows = []; // { igtNum:number|null, predNum:number|null, predQ:string }
+    let rowLimitUsed = 50;
+
+    // Cached numeric values for safe minimums
+    let timeYesVal = null;
+    let timeNoVal = null;
+    let predYesVal = null;
+    let predNoVal = null;
+
+    google.charts.load("current", { packages: ["table"] });
+    google.charts.setOnLoadCallback(() => {
+      chartsReady = true;
+      const btn = document.getElementById("load-btn");
+      if (btn) btn.disabled = false;
+      const hint = document.getElementById("hint");
+      if (hint) hint.textContent = "Choose a Number of Runs and the Current Prediction, then click Load Data.";
+    });
+
+    function buildQuery(limit) {
+      const n = Number(limit);
+      const safe = (Number.isFinite(n) && n > 0) ? Math.floor(n) : 50;
+      rowLimitUsed = safe;
+      return `select * limit ${safe}`;
+    }
+
+    function clearOutputs() {
+      t1Ready = false; t2Ready = false;
+      t1Rows = [];
+      t2Map.clear();
+      stitchedRows = [];
+
+      timeYesVal = null;
+      timeNoVal  = null;
+      predYesVal = null;
+      predNoVal  = null;
+
+      setText("status1", "—");
+      setText("status2", "—");
+      setText("statusStitched", "—");
+      setText("propBelow", "—");
+      setText("timeYes", "—");
+      setText("timeNo", "—");
+      setText("predSuccess", "—");
+      setText("predBasedYes", "—");
+      setText("predBasedNo", "—");
+      setText("safeYes", "—");
+      setText("safeNo", "—");
+      hideAndClear("error1");
+      hideAndClear("error2");
+      setHTML("table1", "");
+      setHTML("stitched-table", "");
+      document.getElementById("stitched-card").classList.add("hidden");
+
+      // Ensure second card initially visible (but will hide after stitch)
+      document.getElementById("card2").classList.remove("hidden");
+
+      // Reset toggles/collapsed
+      setCollapsed('stitched', true);
+      setText("toggle-btn-stitched", "Show Results Table");
+    }
+
+    function loadAll() {
+      if (!chartsReady) return;
+      const limitInput = document.getElementById("row-limit");
+      const query = buildQuery(limitInput.value);
+      clearOutputs();
+      loadViaJSONP(GID_PROCESSED, "handleProcessed", query);
+      loadViaJSONP(GID_SECOND, "handleSecond", query);
+    }
+
+    function setText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+    function setHTML(id, html) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    }
+    function hideAndClear(id) {
+      const el = document.getElementById(id);
+      if (el) { el.style.display = "none"; el.textContent = ""; }
+    }
+    function setError(id, text) {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = text; el.style.display = "block"; }
+    }
+
+    function loadViaJSONP(gid, handlerName, query) {
+      const base = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq`;
+      const params = new URLSearchParams({
+        gid: gid,
+        tq: query,
+        tqx: `out:json;responseHandler:${handlerName}`
+      });
+      const url = `${base}?${params.toString()}`;
+      const script = document.createElement("script");
+      script.src = url;
+      script.onerror = () => {
+        if (gid === GID_PROCESSED) {
+          setText("status1", "Failed to load data.");
+          setError("error1", "Network or permissions error when loading the Google Sheets JSONP endpoint.");
+        } else {
+          setText("status2", "Failed to load data.");
+          setError("error2", "Network or permissions error when loading the Google Sheets JSONP endpoint.");
+        }
+      };
+      document.head.appendChild(script);
+    }
+
+    // === TABLE 1 handler (processed) ===
+    function handleProcessed(response) {
+      if (response.status !== "ok") {
+        setText("status1", "Failed to load data.");
+        const err = (response && response.errors && response.errors[0]) || {};
+        setError("error1", "Google Sheets returned an error. " + (err.message || "Unknown error"));
+        return;
+      }
+      try {
+        const dataTable = new google.visualization.DataTable(response.table);
+
+        t1Rows = [];
+        for (let r = 1; r < dataTable.getNumberOfRows(); r++) { // skip first data row
+          const val1 = dataTable.getValue(r, 0);   // col 1
+          const val87 = dataTable.getValue(r, 86); // col 87
+          const val93 = dataTable.getValue(r, 92); // col 93
+
+          const out1 = (val1 == null) ? "" : String(val1);
+
+          let out87 = (val87 == null) ? "" : String(val87);
+          const parts = out87.split(":");
+          if (parts.length === 3) out87 = parts[1];
+
+          let runNum = null;
+          if (typeof val93 === "string") {
+            const num = parseInt(val93.replace(/,/g, ""), 10);
+            if (!isNaN(num)) { runNum = num; }
+          } else if (typeof val93 === "number") {
+            runNum = val93;
+          }
+
+          if (runNum !== null && Number.isFinite(runNum)) {
+            t1Rows.push({ date: out1, igt: out87, run: runNum });
+          }
+        }
+
+        setText("status1", `Processed ${t1Rows.length} rows (limit ${rowLimitUsed}).`);
+        t1Ready = true;
+        maybeStitch();
+      } catch (e) {
+        setText("status1", "Failed to process table.");
+        setError("error1", "Parsing/rendering error: " + (e.message || e));
+      }
+    }
+
+    // === TABLE 2 handler (used for stitching only) ===
+    function handleSecond(response) {
+      if (response.status !== "ok") {
+        setText("status2", "Failed to load data.");
+        const err = (response && response.errors && response.errors[0]) || {};
+        setError("error2", "Google Sheets returned an error. " + (err.message || "Unknown error"));
+        return;
+      }
+      try {
+        const dataTable = new google.visualization.DataTable(response.table);
+
+        // Find columns by label: "run num", "Pred #", "Pred?"
+        let runIdx = -1, predNumIdx = -1, predQIdx = -1;
+        for (let c = 0; c < dataTable.getNumberOfColumns(); c++) {
+          const raw = dataTable.getColumnLabel(c) || "";
+          const label = raw.trim().toLowerCase();
+          if (label === "run num") runIdx = c;
+          if (raw.trim() === "Pred #") predNumIdx = c; // exact match
+          if (raw.trim() === "Pred?") predQIdx = c;
+        }
+
+        if (runIdx === -1) {
+          setText("status2", "Loaded, but couldn't find a 'run num' column to stitch on.");
+        } else {
+          t2Map.clear();
+          for (let r = 1; r < dataTable.getNumberOfRows(); r++) { // skip first data row
+            const keyVal = dataTable.getValue(r, runIdx);
+            let keyInt = null;
+            if (typeof keyVal === "string") {
+              const num = parseInt(keyVal.replace(/,/g, ""), 10);
+              if (!isNaN(num)) keyInt = num;
+            } else if (typeof keyVal === "number") {
+              keyInt = keyVal;
+            }
+            if (keyInt === null) continue;
+
+            // Extract Pred # and Pred?
+            let predNum = null;
+            if (predNumIdx !== -1) {
+              const pv = dataTable.getValue(r, predNumIdx);
+              if (typeof pv === "string") {
+                const num = parseInt(pv.replace(/,/g, ""), 10);
+                predNum = isNaN(num) ? null : num;
+              } else if (typeof pv === "number") {
+                predNum = pv;
+              } else {
+                predNum = null;
+              }
+            }
+
+            const predQ = (predQIdx !== -1)
+              ? (dataTable.getValue(r, predQIdx) == null ? "" : String(dataTable.getValue(r, predQIdx)))
+              : "";
+
+            t2Map.set(keyInt, { predNum, predQ });
+          }
+          setText("status2", `Loaded ${t2Map.size} stitchable rows (limit ${rowLimitUsed}).`);
+        }
+
+        t2Ready = true;
+        maybeStitch();
+      } catch (e) {
+        setText("status2", "Failed to parse second table.");
+        setError("error2", "Parsing/rendering error: " + (e.message || e));
+      }
+    }
+
+    // Stitch when both are ready
+    function maybeStitch() {
+      if (!t1Ready || !t2Ready) return;
+
+      // Build stitched DataTable: first table's 3 cols + "Pred #" + "Pred?"
+      const stitched = new google.visualization.DataTable();
+      stitched.addColumn("string", "Date Played (EST)");
+      stitched.addColumn("string", "IGT");
+      stitched.addColumn("number", "run number");
+      stitched.addColumn("number", "Pred #");
+      stitched.addColumn("string", "Pred?");
+
+      let joinedCount = 0;
+      const igtValues = []; // numeric IGTs for proportion calc
+      stitchedRows = [];
+
+      t1Rows.forEach(({ date, igt, run }) => {
+        const match = t2Map.get(run);
+        if (match) {
+          const { predNum, predQ } = match;
+          stitched.addRow([date, igt, run, predNum, predQ]);
+          joinedCount++;
+
+          const igtNum = (igt == null) ? NaN : parseFloat(String(igt).trim());
+          if (!Number.isNaN(igtNum)) igtValues.push(igtNum);
+
+          stitchedRows.push({
+            igtNum: Number.isNaN(igtNum) ? null : igtNum,
+            predNum: (typeof predNum === "number" && Number.isFinite(predNum)) ? predNum : null,
+            predQ: predQ == null ? "" : String(predQ)
+          });
+        }
+      });
+
+      // Draw stitched table
+      const table = new google.visualization.Table(document.getElementById("stitched-table"));
+      table.draw(stitched, { showRowNumber: true, width: "100%", allowHtml: true });
+
+      // Show card, keep table collapsed by default
+      document.getElementById("stitched-card").classList.remove("hidden");
+      setCollapsed('stitched', true);
+      setText("toggle-btn-stitched", "Show Results Table");
+      document.getElementById("card2").classList.add("hidden");
+
+      setText("statusStitched", `Stitched ${joinedCount} rows (limit ${rowLimitUsed}) -> ${rowLimitUsed-joinedCount-1} current version runs in sample size`);
+
+      // Compute metrics
+      computeProportionBelow(igtValues);
+      computePredSuccess(stitchedRows);
+    }
+
+    function computeProportionBelow(igtValues) {
+      const predInput = document.getElementById("current-pred");
+      const raw = predInput ? predInput.value : "";
+      const threshold = parseFloat(String(raw).trim());
+      if (!Number.isFinite(threshold)) {
+        setText("propBelow", "Enter a numeric Current Prediction to compute proportion.");
+        setText("timeYes", "—");
+        setText("timeNo", "—");
+        timeYesVal = null; timeNoVal = null;
+        computeSafeMinimums();
+        return;
+      }
+      const valid = igtValues.filter(v => Number.isFinite(v));
+      if (valid.length === 0) {
+        setText("propBelow", "No valid IGT values to compute proportion.");
+        setText("timeYes", "—");
+        setText("timeNo", "—");
+        timeYesVal = null; timeNoVal = null;
+        computeSafeMinimums();
+        return;
+      }
+      const belowCount = valid.reduce((acc, v) => acc + (v < threshold ? 1 : 0), 0);
+      const proportion = belowCount / valid.length;
+      setText("propBelow", `Proportion of IGT < Current Prediction: ${proportion.toFixed(4)} (${belowCount}/${valid.length})`);
+
+      // Time-based Yes/No
+      let tYes = null, tNo = null;
+      if (proportion > 0) {
+        tYes = 1 / proportion;
+        setText("timeYes", `Time-based Yes: ${tYes.toFixed(4)}`);
+      } else {
+        setText("timeYes", "Time-based Yes: ∞ (proportion = 0)");
+        tYes = Infinity;
+      }
+      if (proportion < 1) {
+        tNo = 1 / (1 - proportion);
+        setText("timeNo", `Time-based No: ${tNo.toFixed(4)}`);
+      } else {
+        setText("timeNo", "Time-based No: ∞ (proportion = 1)");
+        tNo = Infinity;
+      }
+      timeYesVal = tYes;
+      timeNoVal  = tNo;
+      computeSafeMinimums();
+    }
+
+    function computePredSuccess(rows) {
+      const predInput = document.getElementById("current-pred");
+      const raw = predInput ? predInput.value : "";
+      const target = parseFloat(String(raw).trim());
+      if (!Number.isFinite(target)) {
+        setText("predSuccess", "Enter a numeric Current Prediction to compute proportion of pred success.");
+        setText("predBasedYes", "—");
+        setText("predBasedNo", "—");
+        predYesVal = null; predNoVal = null;
+        computeSafeMinimums();
+        return;
+      }
+      const matched = rows.filter(r => r.predNum !== null && r.predNum === target);
+      if (matched.length === 0) {
+        setText("predSuccess", "Proportion of Pred Success: 0.0000 (0/0 matched to Current Prediction)");
+        setText("predBasedYes", "Pred-based Yes: ∞ (proportion = 0)");
+        setText("predBasedNo", "Pred-based No: 1.0000");
+        predYesVal = Infinity;
+        predNoVal = 1.0;
+        computeSafeMinimums();
+        return;
+      }
+      const yCount = matched.reduce((acc, r) => acc + ((r.predQ || '').trim().toUpperCase() === 'Y' ? 1 : 0), 0);
+      const proportion = yCount / matched.length;
+      setText("predSuccess", `Proportion of Pred Success: ${proportion.toFixed(4)} (${yCount}/${matched.length} with Pred? = Y)`);
+
+      // Pred-based Yes/No
+      let pYes = null, pNo = null;
+      if (proportion > 0) {
+        pYes = 1 / proportion;
+        setText("predBasedYes", `Pred-based Yes: ${pYes.toFixed(4)}`);
+      } else {
+        setText("predBasedYes", "Pred-based Yes: ∞ (proportion = 0)");
+        pYes = Infinity;
+      }
+      if (proportion < 1) {
+        pNo = 1 / (1 - proportion);
+        setText("predBasedNo", `Pred-based No: ${pNo.toFixed(4)}`);
+      } else {
+        setText("predBasedNo", "Pred-based No: ∞ (proportion = 1)");
+        pNo = Infinity;
+      }
+      predYesVal = pYes;
+      predNoVal  = pNo;
+      computeSafeMinimums();
+    }
+
+    function computeSafeMinimums() {
+      const safeYesEl = document.getElementById("safeYes");
+      const safeNoEl = document.getElementById("safeNo");
+      if (!safeYesEl || !safeNoEl) return;
+
+      function maxPretty(a, b) {
+        if (a === Infinity || b === Infinity) return "∞";
+        if (a == null && b == null) return "—";
+        if (a == null) return (typeof b === "number") ? b.toFixed(4) : "—";
+        if (b == null) return (typeof a === "number") ? a.toFixed(4) : "—";
+        return Math.max(a, b).toFixed(4);
+      }
+
+      const safeYesText = maxPretty(predYesVal, timeYesVal);
+      const safeNoText  = maxPretty(predNoVal,  timeNoVal);
+
+      safeYesEl.textContent = `Safe Minimum Yes: ${safeYesText}`;
+      safeNoEl.textContent  = `Safe Minimum No: ${safeNoText}`;
+    }
+
+    // Toggle helpers
+    function setCollapsed(which, collapsed) {
+      const containerId = which === 'stitched' ? "stitched-container" : "table-container2";
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      if (collapsed) container.classList.add("collapsed");
+      else container.classList.remove("collapsed");
+    }
+    function toggleTable(which) {
+      const btnId = which === 'stitched' ? "toggle-btn-stitched" : "toggle-btn2";
+      const containerId = which === 'stitched' ? "stitched-container" : "table-container2";
+      const container = document.getElementById(containerId);
+      const btn = document.getElementById(btnId);
+      if (container.classList.contains("collapsed")) {
+        container.classList.remove("collapsed");
+        btn.textContent = which === 'stitched' ? "Hide Results Table" : "Hide Table";
+      } else {
+        container.classList.add("collapsed");
+        btn.textContent = which === 'stitched' ? "Show Results Table" : "Show Table";
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="page-title">Couriway Prediction Calculator</div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <label for="row-limit">Number of Runs:</label>
+    <input id="row-limit" type="number" min="1" step="50" value="50" />
+    <label for="current-pred">Current Prediction:</label>
+    <input id="current-pred" type="number" step="1" placeholder="Enter prediction..." />
+    <button id="load-btn" onclick="loadAll()" disabled>Load Data</button>
+    <span id="hint" style="margin-left:0.25rem; color:var(--muted);">Loading chart library…</span>
+  </div>
+
+  <!-- Prediction Results -->
+  <div class="card hidden" id="stitched-card">
+    <h2>Prediction Results</h2>
+    <div id="statusStitched" class="status" role="status" aria-live="polite">—</div>
+    <div id="propBelow" class="metric">—</div>
+    <div id="timeYes" class="metric">—</div>
+    <div id="timeNo" class="metric">—</div>
+    <div class="spacer"></div>
+    <div id="predSuccess" class="metric">—</div>
+    <div id="predBasedYes" class="metric">—</div>
+    <div id="predBasedNo" class="metric">—</div>
+    <div class="spacer"></div>
+    <div id="safeYes" class="metric">—</div>
+    <div id="safeNo" class="metric">—</div>
+    <button id="toggle-btn-stitched" class="toggle-btn" onclick="toggleTable('stitched')">Show Results Table</button>
+    <div id="stitched-container" class="table-container collapsed">
+      <div id="stitched-table" aria-busy="true"></div>
+    </div>
+  </div>
+
+  <!-- Table 2 (hidden after stitch) -->
+  <div class="card" id="card2">
+    <h3>Prediction Results</h3>
+    <div id="status2" class="status">—</div>
+    <pre id="error2" class="error" style="display:none;"></pre>
+  </div>
+</body>
+</html>
