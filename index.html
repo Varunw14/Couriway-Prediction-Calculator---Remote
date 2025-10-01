@@ -6,32 +6,42 @@
   <title>Couriway Prediction Calculator</title>
   <style>
     :root {
-      --bg: #0b0f16;
-      --panel: #111827;
-      --panel-elev: #0f172a;
+      --bg: #2e1d4d;
+      --panel: #3b2966;
+      --panel-elev: #483070;
       --text: #e5e7eb;
-      --muted: #9ca3af;
-      --accent: #3b82f6;
-      --accent-hover: #2563eb;
-      --border: #1f2937;
+      --muted: #c4b3de;
+      --accent: #7a4cd9;
+      --accent-hover: #9d6af5;
+      --border: #5a3c87;
       --error: #fca5a5;
       --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --tab-bg: #3b2966;
+      --tab-active-bg: #483070;
+      --tab-hover: #4b3375;
+      --focus: #bca3ff;
     }
     * { box-sizing: border-box; }
     body {
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       margin: 2rem;
-      background: radial-gradient(1200px 800px at 20% -10%, #0f172a 0%, var(--bg) 60%);
+      background: radial-gradient(1200px 800px at 20% -10%, #483070 0%, #2e1d4d 100%);
       color: var(--text);
     }
     .page-title {
       font-size: 2rem;
       font-weight: 800;
       letter-spacing: 0.2px;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1rem;
       text-align: center;
       color: #fff;
     }
+
+    /* Tabs */
+    .tab-panel {
+      margin-top: 0.9rem;
+    }
+
     .controls, .card {
       background: linear-gradient(180deg, var(--panel) 0%, var(--panel-elev) 100%);
       border: 1px solid var(--border);
@@ -53,13 +63,13 @@
       width: 170px;
       padding: 0.5rem 0.7rem;
       border: 1px solid var(--border);
-      background: #0b1220;
+      background: #3b2966;
       color: var(--text);
       border-radius: 10px;
       font-size: 0.95rem;
       outline: none;
     }
-    .controls input::placeholder { color: #6b7280; }
+    .controls input::placeholder { color: #b59ed6; }
     .controls button {
       padding: 0.55rem 1rem;
       border: 1px solid rgba(255,255,255,0.08);
@@ -86,29 +96,279 @@
       font-size: 0.9rem;
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 10px;
-      background: #0b1220;
+      background: #3b2966;
       color: var(--text);
       cursor: pointer;
     }
-    .toggle-btn:hover { background: #0e1526; }
+    .toggle-btn:hover { background: #4b3375; }
     .table-container { margin-top: 1rem; }
     .collapsed { display: none; }
     .hidden { display: none; }
 
-    /* Google Table dark theming */
+    /* Google Table purple theming */
     .google-visualization-table-table,
     .google-visualization-table-table * {
       color: var(--text) !important;
       background: transparent !important;
       border-color: var(--border) !important;
     }
-    .google-visualization-table-tr-even { background: rgba(255,255,255,0.03) !important; }
-    .google-visualization-table-tr-odd { background: rgba(255,255,255,0.015) !important; }
+    .google-visualization-table-tr-even { background: rgba(255,255,255,0.06) !important; }
+    .google-visualization-table-tr-odd { background: rgba(255,255,255,0.03) !important; }
     .google-visualization-table-th { font-weight: 700 !important; }
     .google-visualization-table-div-page { color: var(--muted) !important; }
+  
+    .tabs {
+      display:flex;
+      gap:8px;
+      justify-content:center;
+      flex-wrap:wrap;
+      margin-bottom:22px;
+    }
+    .tab {
+      padding:10px 16px;
+      border:1px solid var(--border);
+      border-bottom:2px solid transparent;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      color:var(--text);
+      border-radius: 12px;
+      cursor:pointer;
+      transition: all .2s ease;
+      box-shadow: var(--shadow);
+      user-select:none;
+    }
+    .tab[aria-selected="true"] {
+      background: linear-gradient(180deg, rgba(187,167,255,0.18), rgba(187,167,255,0.06));
+      border-color: var(--accent);
+      border-bottom-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+  
+    /* Stronghold grid layout */
+    .row{display:grid; gap:14px}
+    @media (min-width:900px){ .row{ grid-template-columns: 1.2fr 1fr; } }
+    .grid-3{display:grid; gap:12px}
+    @media (min-width:700px){ .grid-3{ grid-template-columns: repeat(3,1fr);} }
+
+    label{ display:block; font-weight:600; margin-bottom:6px; }
+    input[type="number"], input[type="text"]{
+      width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+      background: rgba(255,255,255,0.05); color:var(--text); outline:none;
+    }
+
+    /* Stronghold "Calculate" button style (same as Load Data) */
+    .calc-btn {
+      padding: 0.55rem 1rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
+      color: #fff;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.15s ease;
+    }
+    .calc-btn:hover { filter: brightness(1.08); }
+    .calc-btn:active { transform: translateY(1px); }
+    .calc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
   </style>
-  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <script src="https://www.gstatic.com/charts/loader.js">
+    // ---- Stronghold calc ----
+    
+    // ---- Stronghold calc (compat) ----
+    function strongholdCalc() {
+      var xEl = document.getElementById('ow-x');
+      var zEl = document.getElementById('ow-z');
+      var a1El = document.getElementById('angle-1');
+      var a2El = document.getElementById('angle-2');
+      var scEl = document.getElementById('sub-chunk');
+
+      var errEl = document.getElementById('stronghold-error');
+      var outCard = document.getElementById('stronghold-output-card');
+      var coordsEl = document.getElementById('stronghold-coords');
+
+      function showErr(msg) {
+        if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+        if (outCard) outCard.classList.remove('hidden');
+        if (coordsEl) coordsEl.textContent = 'Stronghold Nether Coordinates: —, —';
+      }
+      function hideErr() {
+        if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      }
+
+      var x = parseFloat(xEl ? xEl.value : '');
+      var z = parseFloat(zEl ? zEl.value : '');
+      var a1 = parseFloat(a1El ? a1El.value : '');
+      var a2 = parseFloat(a2El ? a2El.value : '');
+      var sc = parseFloat(scEl ? scEl.value : '');
+
+      if (!(isFinite(x) && isFinite(z) && isFinite(a1) && isFinite(a2) && isFinite(sc))) {
+        showErr('Please enter valid numbers for all fields.');
+        return;
+      }
+      if (sc < 0 || sc > 8) {
+        showErr('Sub-Chunk must be between 0 and 15.');
+        return;
+      }
+
+      var diff = Math.abs(a1 - a2);
+      var rad = diff * Math.PI / 180;
+      var t = Math.tan(rad);
+      if (!isFinite(t) || Math.abs(t) < 1e-12) {
+        showErr('Angles are too similar; tan(Δ) is near zero. Please adjust inputs.');
+        return;
+      }
+      var K = 2 / t; // 2 / tan(|a1 - a2|)
+      var scScale = (sc / 8.0);
+      var xOvernet = x / 8.0;
+      var zOvernet = z / 8.0;
+
+      var x1 = null, z1 = null;
+
+      function inRange(a, lo, hi) { return a >= lo && a <= hi; }
+
+      if (inRange(a1, -90, -45.1)) {
+        x1 = ( K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+      } else if (inRange(a1, -135, -90.1)) {
+        x1 = ( K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+      } else if (inRange(a1, -180, -135.1)) {
+        z1 = ( -K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+      } else if (inRange(a1, 135, 180)) {
+        z1 = ( -K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+      } else if (inRange(a1, 90, 134.9)) {
+        x1 = ( -K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+      } else if (inRange(a1, 45, 89.9)) {
+        x1 = ( -K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+      } else if (inRange(a1, 0, 44.9)) {
+        z1 = ( K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+      } else if (inRange(a1, -45, -0.1)) {
+        z1 = ( K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+      } else {
+        showErr('1st Angle of Throw is outside all specified ranges.');
+        return;
+      }
+
+      hideErr();
+      if (outCard) outCard.classList.remove('hidden');
+
+      var xf = isFinite(x1) ? Math.round(x1) : '—';
+      var zf = isFinite(z1) ? Math.round(z1) : '—';
+      if (coordsEl) coordsEl.textContent = 'Stronghold Nether Coordinates: ' + xf + ', ' + zf;
+      var owEl = document.getElementById('stronghold-overworld');
+      var x2 = (isFinite(x1) ? Math.round(x1) * 8 : '—');
+      var z2 = (isFinite(z1) ? Math.round(z1) * 8 : '—');
+      if (owEl) owEl.textContent = 'Stronghold Overworld Coordinates: ' + x2 + ', ' + z2;      // Optional: scroll into view
+      if (outCard && outCard.scrollIntoView) { outCard.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+    }
+
+      function hideErr() {
+        if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      }
+
+      const x = parseFloat(xStr);
+      const z = parseFloat(zStr);
+      const a1 = parseFloat(a1Str);
+      const a2 = parseFloat(a2Str);
+      const sc = parseFloat(scStr);
+
+      if (![x,z,a1,a2,sc].every(v => Number.isFinite(v))) {
+        showErr('Please enter valid numbers for all fields.');
+        return;
+      }
+      if (sc < 0 || sc > 15) {
+        showErr('Sub-Chunk must be between 0 and 15.');
+        return;
+      }
+
+      const diff = Math.abs(a1 - a2);
+      const rad = diff * Math.PI / 180;
+      const t = Math.tan(rad);
+      if (!Number.isFinite(t) || Math.abs(t) < 1e-12) {
+        showErr('Angles are too similar; tan(Δ) is near zero. Please adjust inputs.');
+        return;
+      }
+      const K = 8 / t; // 8 / tan(|a1 - a2|)
+      const scScale = (sc / 8.0);
+      const xOvernet = x / 8.0;
+      const zOvernet = z / 8.0;
+
+      let x1 = null, z1 = null;
+
+      function inRange(a, lo, hi) { return a >= lo && a <= hi; }
+
+      if (inRange(a1, -90, -45.1)) {
+        x1 = ( K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+      } else if (inRange(a1, -135, -90.1)) {
+        x1 = ( K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+      } else if (inRange(a1, -180, -135.1)) {
+        z1 = ( -K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+      } else if (inRange(a1, 135, 180)) {
+        z1 = ( -K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+      } else if (inRange(a1, 90, 134.9)) {
+        x1 = ( -K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+      } else if (inRange(a1, 45, 89.9)) {
+        x1 = ( -K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+      } else if (inRange(a1, 0, 44.9)) {
+        z1 = ( K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+      } else if (inRange(a1, -45, -0.1)) {
+        z1 = ( K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+      } else {
+        showErr('1st Angle of Throw is outside all specified ranges.');
+        return;
+      }
+
+      hideErr();
+      if (outCard) outCard.classList.remove('hidden');
+
+      const xf = Number.isFinite(x1) ? x1.toFixed(3) : '—';
+      const zf = Number.isFinite(z1) ? z1.toFixed(3) : '—';
+      if (coordsEl) coordsEl.textContent = `Stronghold Nether Coordinates: ${xf}, ${zf}`;
+
+</script>
   <script>
+    // ---- Tabs logic ----
+    function initTabs() {
+      const tablist = document.querySelector('[role="tablist"]');
+      if (!tablist) return;
+      const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+      const panels = Array.from(document.querySelectorAll('[role="tabpanel"]'));
+
+      function activateTab(tab) {
+        tabs.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+        panels.forEach(p => p.hidden = (p.id !== tab.getAttribute('aria-controls')));
+      }
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => activateTab(tab));
+        tab.addEventListener('keydown', (e) => {
+          const idx = tabs.indexOf(tab);
+          if (e.key === 'ArrowRight') { e.preventDefault(); const n = tabs[(idx+1)%tabs.length]; n.focus(); activateTab(n); }
+          if (e.key === 'ArrowLeft') { e.preventDefault(); const p = tabs[(idx-1+tabs.length)%tabs.length]; p.focus(); activateTab(p); }
+        });
+      });
+
+      // Activate first selected tab on load
+      const selected = tabs.find(t => t.getAttribute('aria-selected') === 'true') || tabs[0];
+      if (selected) activateTab(selected);
+    }
+
+    // ---- Existing app logic ----
     const SPREADSHEET_ID = "1Tyw9fwdZgsHJoHzlE-0LPSEDOduRkZwL2UUNA-_4Xo4";
     const GID_PROCESSED = "1760430564";
     const GID_SECOND = "1885267609";
@@ -137,6 +397,8 @@
       const hint = document.getElementById("hint");
       if (hint) hint.textContent = "Choose a Number of Runs and the Current Prediction, then click Load Data.";
     });
+
+    window.addEventListener('DOMContentLoaded', initTabs);
 
     function buildQuery(limit) {
       const n = Number(limit);
@@ -279,7 +541,7 @@
       if (response.status !== "ok") {
         setText("status2", "Failed to load data.");
         const err = (response && response.errors && response.errors[0]) || {};
-        setError("error2", "Google Sheets returned an error. " + (err.message || "Unknown error"));
+        setError("error2", "Google Sheets returned an error. " + (err.message || e));
         return;
       }
       try {
@@ -526,46 +788,394 @@
         btn.textContent = which === 'stitched' ? "Show Results Table" : "Show Table";
       }
     }
-  </script>
+  
+    // ---- Stronghold calc (global) ----
+    function strongholdCalc() {
+      var xEl = document.getElementById('ow-x');
+      var zEl = document.getElementById('ow-z');
+      var a1El = document.getElementById('angle-1');
+      var a2El = document.getElementById('angle-2');
+      var scEl = document.getElementById('sub-chunk');
+
+      var errEl = document.getElementById('stronghold-error');
+      var outCard = document.getElementById('stronghold-output-card');
+      var coordsEl = document.getElementById('stronghold-coords');
+
+      function showErr(msg) {
+        if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+        if (outCard) outCard.classList.remove('hidden');
+        if (coordsEl) coordsEl.textContent = 'Stronghold Nether Coordinates: —, —';
+      }
+      function hideErr() {
+        if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      }
+
+      var x = parseFloat(xEl ? xEl.value : '');
+      var z = parseFloat(zEl ? zEl.value : '');
+      var a1 = parseFloat(a1El ? a1El.value : '');
+      var a2 = parseFloat(a2El ? a2El.value : '');
+      var sc = parseFloat(scEl ? scEl.value : '');
+
+      if (!(isFinite(x) && isFinite(z) && isFinite(a1) && isFinite(a2) && isFinite(sc))) {
+        showErr('Please enter valid numbers for all fields.');
+        return;
+      }
+      if (sc < 0 || sc > 15) {
+        showErr('Sub-Chunk must be between 0 and 15.');
+        return;
+      }
+
+      var diff = Math.abs(a1 - a2);
+      var rad = diff * Math.PI / 180;
+      var t = Math.tan(rad);
+      if (!isFinite(t) || Math.abs(t) < 1e-12) {
+        showErr('Angles are too similar; tan(Δ) is near zero. Please adjust inputs.');
+        return;
+      }
+      var K = 2 / t; // 2 / tan(|a1 - a2|)
+      var scScale = (sc / 8.0);
+      var xOvernet = x / 8.0;
+      var zOvernet = z / 8.0;
+
+      var x1 = null, z1 = null;
+
+      function inRange(a, lo, hi) { return a >= lo && a <= hi; }
+
+      if (inRange(a1, -90, -45.1)) {
+        x1 = ( K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+      } else if (inRange(a1, -135, -90.1)) {
+        x1 = ( K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+      } else if (inRange(a1, -180, -135.1)) {
+        z1 = ( -K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+      } else if (inRange(a1, 135, 180)) {
+        z1 = ( -K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+      } else if (inRange(a1, 90, 134.9)) {
+        x1 = ( -K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+      } else if (inRange(a1, 45, 89.9)) {
+        x1 = ( -K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+      } else if (inRange(a1, 0, 44.9)) {
+        z1 = ( K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+      } else if (inRange(a1, -45, -0.1)) {
+        z1 = ( K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+      } else {
+        showErr('1st Angle of Throw is outside all specified ranges.');
+        return;
+      }
+
+      hideErr();
+      if (outCard) outCard.classList.remove('hidden');
+
+      var xf = isFinite(x1) ? Math.round(x1) : '—';
+      var zf = isFinite(z1) ? Math.round(z1) : '—';
+      if (coordsEl) coordsEl.textContent = 'Stronghold Nether Coordinates: ' + xf + ', ' + zf;
+      var owEl = document.getElementById('stronghold-overworld');
+      var x2 = (isFinite(x1) ? Math.round(x1) * 8 : '—');
+      var z2 = (isFinite(z1) ? Math.round(z1) * 8 : '—');
+      if (owEl) owEl.textContent = 'Stronghold Overworld Coordinates: ' + x2 + ', ' + z2;      if (outCard && outCard.scrollIntoView) { outCard.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+    }
+
+
+    // ---- Stronghold: toggle working ----
+    function toggleStrongholdWorking() {
+      var c = document.getElementById('stronghold-working-container');
+      var btn = document.getElementById('stronghold-working-toggle');
+      if (!c || !btn) return;
+      var collapsed = c.classList.contains('collapsed');
+      if (collapsed) {
+        c.classList.remove('collapsed');
+        btn.textContent = 'Hide Working';
+      } else {
+        c.classList.add('collapsed');
+        btn.textContent = 'Show Working';
+      }
+    }
+
+    // ---- Stronghold: copy nether coords ----
+    function copyNetherCoords() {
+      var el = document.getElementById('stronghold-coords');
+      if (!el) return;
+      var txt = el.textContent || '';
+      // Expect format: "Stronghold Nether Coordinates: X, Z"
+      var idx = txt.indexOf(':');
+      var payload = (idx >= 0) ? txt.slice(idx+1).trim() : txt.trim();
+      function done(ok) {
+        var btn = document.getElementById('copy-nether-btn');
+        if (!btn) return;
+        var old = btn.textContent;
+        btn.textContent = ok ? 'Copied!' : 'Copy failed';
+        setTimeout(function(){ btn.textContent = old; }, 1400);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).then(function(){ done(true); }, function(){ done(false); });
+      } else {
+        // Fallback
+        var ta = document.createElement('textarea');
+        ta.value = payload;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(true); } catch(e){ done(false); }
+        document.body.removeChild(ta);
+      }
+    }
+
+    // ---- Stronghold calc (with working; K = 2/t; whole-number output) ----
+    function strongholdCalc() {
+      var xEl = document.getElementById('ow-x');
+      var zEl = document.getElementById('ow-z');
+      var a1El = document.getElementById('angle-1');
+      var a2El = document.getElementById('angle-2');
+      var scEl = document.getElementById('sub-chunk');
+
+      var errEl = document.getElementById('stronghold-error');
+      var outCard = document.getElementById('stronghold-output-card');
+      var coordsEl = document.getElementById('stronghold-coords');
+      var workEl = document.getElementById('stronghold-working');
+
+      function showErr(msg) {
+        if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+        if (outCard) outCard.classList.remove('hidden');
+        if (coordsEl) coordsEl.textContent = 'Stronghold Nether Coordinates: —, —';
+        if (workEl) workEl.textContent = '';
+      }
+      function hideErr() {
+        if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+      }
+      function fmt(n, d) { return (isFinite(n) ? n.toFixed(d) : String(n)); }
+
+      var x = parseFloat(xEl ? xEl.value : '');
+      var z = parseFloat(zEl ? zEl.value : '');
+      var a1 = parseFloat(a1El ? a1El.value : '');
+      var a2 = parseFloat(a2El ? a2El.value : '');
+      var sc = parseFloat(scEl ? scEl.value : '');
+
+      if (!(isFinite(x) && isFinite(z) && isFinite(a1) && isFinite(a2) && isFinite(sc))) {
+        showErr('Please enter valid numbers for all fields.');
+        return;
+      }
+      if (sc < 0 || sc > 15) {
+        showErr('Sub-Chunk must be between 0 and 15.');
+        return;
+      }
+
+      var steps = [];
+      steps.push('Inputs:');
+      steps.push('  OW X Coordinate = ' + x);
+      steps.push('  OW Z Coordinate = ' + z);
+      steps.push('  1st Angle of Throw = ' + a1);
+      steps.push('  2nd Angle of Throw = ' + a2);
+      steps.push('  Sub-Chunk = ' + sc);
+
+      var diff = Math.abs(a1 - a2);
+      var rad = diff * Math.PI / 180;
+      var t = Math.tan(rad);
+      if (!isFinite(t) || Math.abs(t) < 1e-12) {
+        showErr('Angles are too similar; tan(Δ) is near zero. Please adjust inputs.');
+        return;
+      }
+      var K = 2 / t; // 2 / tan(|a1 - a2|) per user
+      var scScale = (sc / 8.0);
+      var xOvernet = x / 8.0;
+      var zOvernet = z / 8.0;
+
+      steps.push('');
+      steps.push('Δ = |a1 - a2| = ' + fmt(diff, 4) + '°');
+      steps.push('radians = Δ × π / 180 = ' + fmt(rad, 6));
+      steps.push('tan(Δ) = ' + fmt(t, 6));
+      steps.push('K = 2 / tan(Δ) = ' + fmt(K, 6));
+      steps.push('Sub-Chunk scale = sc / 8 = ' + fmt(scScale, 6));
+      steps.push('OW→Nether scale: x/8 = ' + fmt(xOvernet, 6) + ', z/8 = ' + fmt(zOvernet, 6));
+
+      var x1 = null, z1 = null, rule = '';
+
+      function inRange(a, lo, hi) { return a >= lo && a <= hi; }
+
+      if (inRange(a1, -90, -45.1)) {
+        rule = 'Rule: a1 in [-90, -45.1]';
+        x1 = ( K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('x1 = K + x/8 = ' + fmt(K, 6) + ' + ' + fmt(xOvernet, 6));
+        steps.push('z1 = (K)*(sc/8) + z/8 = ' + fmt(K, 6) + ' * ' + fmt(scScale, 6) + ' + ' + fmt(zOvernet, 6));
+      } else if (inRange(a1, -135, -90.1)) {
+        rule = 'Rule: a1 in [-135, -90.1]';
+        x1 = ( K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('x1 = K + x/8 = ' + fmt(K, 6) + ' + ' + fmt(xOvernet, 6));
+        steps.push('z1 = (-K)*(sc/8) + z/8 = ' + fmt(-K, 6) + ' * ' + ' ' + fmt(scScale, 6) + ' + ' + fmt(zOvernet, 6));
+      } else if (inRange(a1, -180, -135.1)) {
+        rule = 'Rule: a1 in [-180, -135.1]';
+        z1 = ( -K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('z1 = -K + z/8 = ' + fmt(-K, 6) + ' + ' + fmt(zOvernet, 6));
+        steps.push('x1 = (K)*(sc/8) + x/8 = ' + fmt(K, 6) + ' * ' + fmt(scScale, 6) + ' + ' + fmt(xOvernet, 6));
+      } else if (inRange(a1, 135, 180)) {
+        rule = 'Rule: a1 in [135, 180]';
+        z1 = ( -K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('z1 = -K + z/8 = ' + fmt(-K, 6) + ' + ' + fmt(zOvernet, 6));
+        steps.push('x1 = (-K)*(sc/8) + x/8 = ' + fmt(-K, 6) + ' * ' + fmt(scScale, 6) + ' + ' + fmt(xOvernet, 6));
+      } else if (inRange(a1, 90, 134.9)) {
+        rule = 'Rule: a1 in [90, 134.9]';
+        x1 = ( -K + xOvernet );
+        z1 = ( (-K) * scScale + zOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('x1 = -K + x/8 = ' + fmt(-K, 6) + ' + ' + fmt(xOvernet, 6));
+        steps.push('z1 = (-K)*(sc/8) + z/8 = ' + fmt(-K, 6) + ' * ' + fmt(scScale, 6) + ' + ' + fmt(zOvernet, 6));
+      } else if (inRange(a1, 45, 89.9)) {
+        rule = 'Rule: a1 in [45, 89.9]';
+        x1 = ( -K + xOvernet );
+        z1 = ( ( K ) * scScale + zOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('x1 = -K + x/8 = ' + fmt(-K, 6) + ' + ' + fmt(xOvernet, 6));
+        steps.push('z1 = (K)*(sc/8) + z/8 = ' + fmt(K, 6) + ' * ' + fmt(scScale, 6) + ' + ' + fmt(zOvernet, 6));
+      } else if (inRange(a1, 0, 44.9)) {
+        rule = 'Rule: a1 in [0, 44.9]';
+        z1 = ( K + zOvernet );
+        x1 = ( (-K) * scScale + xOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('z1 = K + z/8 = ' + fmt(K, 6) + ' + ' + fmt(zOvernet, 6));
+        steps.push('x1 = (-K)*(sc/8) + x/8 = ' + fmt(-K, 6) + ' * ' + fmt(scScale, 6) + ' + ' + fmt(xOvernet, 6));
+      } else if (inRange(a1, -45, -0.1)) {
+        rule = 'Rule: a1 in [-45, -0.1]';
+        z1 = ( K + zOvernet );
+        x1 = ( ( K ) * scScale + xOvernet );
+        steps.push(''); steps.push(rule);
+        steps.push('z1 = K + z/8 = ' + fmt(K, 6) + ' + ' + fmt(zOvernet, 6));
+        steps.push('x1 = (K)*(sc/8) + x/8 = ' + fmt(K, 6) + ' * ' + fmt(scScale, 6) + ' + ' + fmt(xOvernet, 6));
+      } else {
+        showErr('1st Angle of Throw is outside all specified ranges.');
+        return;
+      }
+
+      hideErr();
+      if (outCard) outCard.classList.remove('hidden');
+
+      var xf = isFinite(x1) ? Math.round(x1) : '—';
+      var zf = isFinite(z1) ? Math.round(z1) : '—';
+      if (coordsEl) coordsEl.textContent = 'Stronghold Nether Coordinates: ' + xf + ', ' + zf;
+
+      steps.push(''); steps.push('Result (Nether):');
+      steps.push('  x1 = ' + xf);
+      steps.push('  z1 = ' + zf);
+
+      if (workEl) workEl.textContent = steps.join('\n');
+      // Also update overworld line if present
+      var owEl = document.getElementById('stronghold-overworld');
+      var x2 = (isFinite(x1) ? Math.round(x1) * 8 : '—');
+      var z2 = (isFinite(z1) ? Math.round(z1) * 8 : '—');
+      if (owEl) owEl.textContent = 'Stronghold Overworld Coordinates: ' + x2 + ', ' + z2;
+    }
+
+</script>
 </head>
 <body>
-  <div class="page-title">Couriway Prediction Calculator</div>
+  <div class="page-title">Couriway 100K Statistics Analysis</div>
 
-  <!-- Controls -->
-  <div class="controls">
-    <label for="row-limit">Number of Runs:</label>
-    <input id="row-limit" type="number" min="1" step="50" value="50" />
-    <label for="current-pred">Current Prediction:</label>
-    <input id="current-pred" type="number" step="1" placeholder="Enter prediction..." />
-    <button id="load-btn" onclick="loadAll()" disabled>Load Data</button>
-    <span id="hint" style="margin-left:0.25rem; color:var(--muted);">Loading chart library…</span>
-  </div>
-
-  <!-- Prediction Results -->
-  <div class="card hidden" id="stitched-card">
-    <h2>Prediction Results</h2>
-    <div id="statusStitched" class="status" role="status" aria-live="polite">—</div>
-    <div id="propBelow" class="metric">—</div>
-    <div id="timeYes" class="metric">—</div>
-    <div id="timeNo" class="metric">—</div>
-    <div class="spacer"></div>
-    <div id="predSuccess" class="metric">—</div>
-    <div id="predBasedYes" class="metric">—</div>
-    <div id="predBasedNo" class="metric">—</div>
-    <div class="spacer"></div>
-    <div id="safeYes" class="metric">—</div>
-    <div id="safeNo" class="metric">—</div>
-    <button id="toggle-btn-stitched" class="toggle-btn" onclick="toggleTable('stitched')">Show Results Table</button>
-    <div id="stitched-container" class="table-container collapsed">
-      <div id="stitched-table" aria-busy="true"></div>
+  <!-- Tabs -->
+  <div class="tabs" role="tablist" aria-label="Calculator sections">
+      <button id="tab-pred" class="tab" role="tab" aria-selected="true" aria-controls="panel-pred">Prediction Calculator</button>
+      <button id="tab-stronghold" class="tab" role="tab" aria-selected="false" aria-controls="panel-stronghold">Stronghold Sheetless</button>
     </div>
-  </div>
 
-  <!-- Table 2 (hidden after stitch) -->
-  <div class="card" id="card2">
-    <h3>Prediction Results</h3>
-    <div id="status2" class="status">—</div>
-    <pre id="error2" class="error" style="display:none;"></pre>
+    <!-- Panels -->
+    <section id="panel-pred" class="tab-panel" role="tabpanel" aria-labelledby="tab-pred">
+      <!-- Controls -->
+      <div class="controls">
+        <label for="row-limit">Number of Runs:</label>
+        <input id="row-limit" type="number" min="1" step="50" value="250" />
+        <label for="current-pred">Current Prediction:</label>
+        <input id="current-pred" type="number" step="1" placeholder="Enter prediction..." />
+        <button id="load-btn" onclick="loadAll()" disabled>Load Data</button>
+        <span id="hint" style="margin-left:0.25rem; color:var(--muted);">Loading chart library…</span>
+      </div>
+
+      <!-- Prediction Results -->
+      <div class="card hidden" id="stitched-card">
+        <h2>Prediction Results</h2>
+        <div id="statusStitched" class="status" role="status" aria-live="polite">—</div>
+        <div id="propBelow" class="metric">—</div>
+        <div id="timeYes" class="metric">—</div>
+        <div id="timeNo" class="metric">—</div>
+        <div class="spacer"></div>
+        <div id="predSuccess" class="metric">—</div>
+        <div id="predBasedYes" class="metric">—</div>
+        <div id="predBasedNo" class="metric">—</div>
+        <div class="spacer"></div>
+        <div id="safeYes" class="metric">—</div>
+        <div id="safeNo" class="metric">—</div>
+        <button id="toggle-btn-stitched" class="toggle-btn" onclick="toggleTable('stitched')">Show Results Table</button>
+        <div id="stitched-container" class="table-container collapsed">
+          <div id="stitched-table" aria-busy="true"></div>
+        </div>
+      </div>
+
+      <!-- Table 2 (hidden after stitch) -->
+      <div class="card" id="card2">
+        <h3>Prediction Results</h3>
+        <div id="status2" class="status">—</div>
+        <pre id="error2" class="error" style="display:none;"></pre>
+      </div>
+    </section>
+
+
+  <section id="panel-stronghold" class="tab-panel" role="tabpanel" aria-labelledby="tab-stronghold" hidden>
+    <div class="card">
+      <h2>Ender Eye Measurements</h2>
+      
+    <div class="grid-3" id="stronghold-controls">
+      <div>
+        <label for="ow-x">Overworld X Coordinate</label>
+        <input id="ow-x" type="number" step="1" placeholder="e.g. 1234" />
+      </div>
+      <div>
+        <label for="ow-z">Overworld Z Coordinate</label>
+        <input id="ow-z" type="number" step="1" placeholder="e.g. -567" />
+      </div>
+      <div>
+        <label for="sub-chunk">Sub-Chunk</label>
+        <input id="sub-chunk" type="number" min="0" max="15" step="1" placeholder="0–15" />
+      </div>
+      <div>
+        <label for="angle-1">1st Angle of Throw</label>
+        <input id="angle-1" type="number" step="0.1" placeholder="e.g. 37.5" />
+      </div>
+      <div>
+        <label for="angle-2">2nd Angle of Throw</label>
+        <input id="angle-2" type="number" step="0.1" placeholder="e.g. 41.2" />
+      </div>
+      <div style="display:flex;align-items:flex-end;justify-content:flex-start">
+        <button id="stronghold-calc-btn" type="button" onclick="strongholdCalc();" class="calc-btn">Calculate</button>
+      </div>
+    
+    </div>
+    </div>
+    <div class="card hidden" id="stronghold-output-card">
+      <h2>Stronghold Coordinates</h2>
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+  <div class="metric" id="stronghold-coords">Stronghold Nether Coordinates: x1, z1</div>
+  <button id="copy-nether-btn" class="toggle-btn" type="button" onclick="copyNetherCoords()">Copy</button>
+</div>
+<button id="stronghold-working-toggle" class="toggle-btn" type="button" onclick="toggleStrongholdWorking()">Show Working</button>
+<div id="stronghold-working-container" class="collapsed" style="margin-top:0.5rem;"><h3 style="margin:0">Calculation Details</h3>
+  <pre id="stronghold-working" style="white-space:pre-wrap; margin-top:0.5rem; color: var(--muted)"></pre>
+</div>
+<div class="spacer"></div>
+<div class="metric" id="stronghold-overworld">Stronghold Overworld Coordinates: x2, z2</div>
+      <pre id="stronghold-error" class="error" style="display:none;"></pre>
+    </div>
+  </section>
+
   </div>
 </body>
 </html>
