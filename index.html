@@ -1199,6 +1199,15 @@
       if (owEl) owEl.textContent = 'Stronghold Overworld Coordinates: ' + x2 + ', ' + z2;
     }
 </script>
+
+<style>
+#chart3-total {
+  font-size: 0.85em;
+  white-space: normal;
+  word-break: break-word;
+}
+</style>
+
 </head>
 <body>
 <div class="page-title">Couriway 100K Statistics Analysis</div>
@@ -1333,7 +1342,24 @@
   </tbody>
 </table>
   </div>
-</div><div class="chart-card"><div class="chart-slot" id="chart-3"></div></div><div class="chart-card"><div class="chart-slot" id="chart-4"></div></div><div class="chart-card"><div class="chart-slot" id="chart-5"></div></div><div class="chart-card"><div class="chart-slot" id="chart-6"></div></div><div class="chart-card"><div class="chart-slot" id="chart-7"></div></div><div class="chart-card"><div class="chart-slot" id="chart-8"></div></div><div class="chart-card"><div class="chart-slot" id="chart-9"></div></div><div class="chart-card"><div class="chart-slot" id="chart-10"></div></div><div class="chart-card"><div class="chart-slot" id="chart-11"></div></div><div class="chart-card"><div class="chart-slot" id="chart-12"></div></div><div class="chart-card"><div class="chart-slot" id="chart-13"></div></div><div class="chart-card"><div class="chart-slot" id="chart-14"></div></div><div class="chart-card"><div class="chart-slot" id="chart-15"></div></div></div></div></section>
+</div><div class="chart-card"><div class="chart-slot" id="chart-3">
+    <h3 class="runs-title">1.16.1 Stats</h3>
+    <table class="runs-table">
+      <colgroup>
+        <col style="width:60%;">
+        <col style="width:40%;">
+      </colgroup>
+      <tbody>
+        <tr><td>Average Time</td><td><span id="chart3-avg">—</span></td></tr>
+        <tr><td>Average Time (Last 10)</td><td><span id="chart3-avg10">—</span></td></tr>
+        <tr><td>Average Time (Last 100)</td><td><span id="chart3-avg100">—</span></td></tr>
+        <tr><td>Average Time (Last 1000)</td><td><span id="chart3-avg1000">—</span></td></tr>
+        <tr><td>Fastest Run</td><td><span id="chart3-fastest">—</span></td></tr>
+        <tr><td>Slowest Run</td><td><span id="chart3-slowest">—</span></td></tr>
+        <tr><td>Total Time Spent Running</td><td><span id="chart3-total">—</span></td></tr>
+      </tbody>
+    </table>
+  </div></div><div class="chart-card"><div class="chart-slot" id="chart-4"></div></div><div class="chart-card"><div class="chart-slot" id="chart-5"></div></div><div class="chart-card"><div class="chart-slot" id="chart-6"></div></div><div class="chart-card"><div class="chart-slot" id="chart-7"></div></div><div class="chart-card"><div class="chart-slot" id="chart-8"></div></div><div class="chart-card"><div class="chart-slot" id="chart-9"></div></div><div class="chart-card"><div class="chart-slot" id="chart-10"></div></div><div class="chart-card"><div class="chart-slot" id="chart-11"></div></div><div class="chart-card"><div class="chart-slot" id="chart-12"></div></div><div class="chart-card"><div class="chart-slot" id="chart-13"></div></div><div class="chart-card"><div class="chart-slot" id="chart-14"></div></div><div class="chart-card"><div class="chart-slot" id="chart-15"></div></div></div></div></section>
 
 <script>
 (function(){
@@ -1422,7 +1448,7 @@
 // Reuse existing Google Charts + loadViaJSONP flow, but fetch all cols and read index 92 (Col93)
 
   // Background store for Col87 (time per run) & Col88 (date EST)
-  window.col8788Store = { times: [], dates: [], loaded: false };
+  window.col8788Store = { times: [], dates: [], col94: [], col16: [], col97: null, col97_seconds: null, col97_10: null, col97_10_seconds: null, col97_100: null, col97_100_seconds: null, col97_1000: null, col97_1000_seconds: null, col97_fastest: null, col97_fastest_seconds: null, col97_slowest: null, col97_slowest_seconds: null, col97_total_dhm: null, col97_total_seconds: null, pairs1694: [], loaded: false };
 
   (function(){
   function startAutoFill(){
@@ -1611,6 +1637,8 @@ window.handleCols8788 = function(response) {
     const cols = dt.getNumberOfColumns();
     const c87 = 86; // zero-based index for column 87 (time per run h:mm:ss)
     const c88 = 87; // zero-based index for column 88 (date played EST)
+    const c94 = 93; // zero-based index for column 94
+    const c16 = 15; // zero-based index for column 16 (h:mm:ss.mmm)
     if (c87 >= cols || c88 >= cols) {
       console.error("[Cols87/88] Missing expected columns. Available:", cols);
       return;
@@ -1618,20 +1646,42 @@ window.handleCols8788 = function(response) {
 
     const times = [];
     const dates = [];
+    const col94 = [];
+    const col16 = [];
+    const pairs1694 = [];
     for (let r = 1; r < rows; r++) {
       const t = dt.getValue(r, c87);
       const d = dt.getValue(r, c88);
+      const v94 = dt.getValue(r, c94);
+      const v16 = dt.getValue(r, c16);
       if (t != null) times.push(String(t));
       if (d != null) dates.push(String(d));
+      if (v94 != null) col94.push(String(v94));
+      if (v16 != null) {
+      var str16;
+      if (v16 instanceof Date) {
+        var hh = v16.getHours();
+        var mm = String(v16.getMinutes()).padStart(2, '0');
+        var ss = String(v16.getSeconds()).padStart(2, '0');
+        str16 = hh + ':' + mm + ':' + ss;
+      } else {
+        str16 = String(v16);
+      }
+      col16.push(str16);
+      pairs1694.push({ t16: str16, c94: (v94 == null ? null : String(v94)) });
     }
+}
 
     console.log("[Cols87] first 3:", times.slice(0,3));
     console.log("[Cols88] first 3:", dates.slice(0,3));
 
-    if (!window.col8788Store) window.col8788Store = { times: [], dates: [], loaded: false };
+    if (!window.col8788Store) window.col8788Store = { times: [], dates: [], col94: [], col16: [], col97: null, col97_seconds: null, col97_10: null, col97_10_seconds: null, col97_100: null, col97_100_seconds: null, col97_1000: null, col97_1000_seconds: null, col97_fastest: null, col97_fastest_seconds: null, col97_slowest: null, col97_slowest_seconds: null, col97_total_dhm: null, col97_total_seconds: null, pairs1694: [], loaded: false };
     window.col8788Store.times = times;
     window.col8788Store.dates = dates;
-    window.col8788Store.loaded = true;
+    window.col8788Store.col94 = col94;
+        window.col8788Store.col16 = col16;
+    window.col8788Store.pairs1694 = pairs1694;
+window.col8788Store.loaded = true;
 
     function parseHMS(str) {
       if (!str) return null;
@@ -1782,3 +1832,141 @@ cells[0].textContent = String(item.displayDate || '—');  // Date
 
 </body>
 </html>
+
+<script>
+(function(){
+  function logOnce(){
+    try{
+      if (window.col8788Store && Array.isArray(window.col8788Store.col94) && window.col8788Store.col94.length){
+        console.log("First 100 items from Col94:", window.col8788Store.col94.slice(0, 100));
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }
+  if (!logOnce()){
+    var iv = setInterval(function(){
+      if (logOnce()) clearInterval(iv);
+    }, 200);
+    setTimeout(function(){ clearInterval(iv); }, 15000);
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  
+function toSecondsFromCol16(val){
+  if (val == null) return null;
+  // Date object from Google DataTable (e.g., Sat Dec 30 1899 00:25:54 ...)
+  if (val instanceof Date){
+    return val.getHours()*3600 + val.getMinutes()*60 + val.getSeconds() + (val.getMilliseconds()||0)/1000;
+  }
+  // Numeric fraction-of-day (Excel/Sheets style): 1 day == 86400 seconds
+  if (typeof val === 'number' && isFinite(val)){
+    return val * 86400;
+  }
+  // String formats: h:mm:ss.mmm or h:mm:ss
+  var s = String(val).trim();
+  var m = s.match(/^(\d+):([0-5]?\d):([0-5]?\d)(?:\.(\d{1,3}))?$/);
+  if (m){
+    var h = parseInt(m[1],10), mi = parseInt(m[2],10), se = parseInt(m[3],10);
+    var ms = m[4] != null ? parseInt((m[4] + '000').slice(0,3),10) : 0;
+    return h*3600 + mi*60 + se + ms/1000;
+  }
+  m = s.match(/^(\d+):([0-5]?\d):([0-5]?\d)$/);
+  if (m){
+    var h2 = parseInt(m[1],10), mi2 = parseInt(m[2],10), se2 = parseInt(m[3],10);
+    return h2*3600 + mi2*60 + se2;
+  }
+  return null;
+}
+  function fmtHMS(secs){
+    if (secs == null || !isFinite(secs)) return null;
+    secs = Math.round(secs);
+    var h = Math.floor(secs / 3600);
+    var rem = secs % 3600;
+    var m = Math.floor(rem / 60);
+    var s = rem % 60;
+    return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+  function toDHM(total){
+    if (!isFinite(total)) return null;
+    total = Math.floor(total);
+    var days = Math.floor(total / 86400);
+    var remD = total % 86400;
+    var hours = Math.floor(remD / 3600);
+    var remH = remD % 3600;
+    var mins = Math.floor(remH / 60);
+    return { days: days, hours: hours, mins: mins };
+  }
+  function compute(){
+    try{
+      var store = window.col8788Store || {};
+      if (!store.loaded || !Array.isArray(store.col16) || !Array.isArray(store.col94)) return false;
+      var pairs = (Array.isArray(store.pairs1694) && store.pairs1694.length) ? store.pairs1694
+                 : store.col16.map(function(t16, idx){ return { t16: String(t16), c94: (store.col94[idx] != null ? String(store.col94[idx]) : null) };
+});
+      console.log("[Chart-3] First 10 Col16 values:", (window.col8788Store && window.col8788Store.col16) ? window.col8788Store.col16.slice(0,10) : []);
+      var keep = pairs.filter(function(p){
+        return !(String(p.c94 || "").trim().toLowerCase() === "true");
+      });
+      function avgSeconds(arr){
+        var sum = 0, count = 0;
+        for (var i=0;i<arr.length;i++){
+          var secs = toSecondsFromCol16(arr[i].t16);
+          if (typeof secs === "number" && isFinite(secs)){ sum += secs; count++; }
+        }
+        return count ? (sum / count) : null;
+      }
+      var avgAll = avgSeconds(keep);
+      var avg10 = avgSeconds(keep.slice(0,10));
+      var avg100 = avgSeconds(keep.slice(0,100));
+      var avg1000 = avgSeconds(keep.slice(0,1000));
+      var secsArr = keep.map(function(p){ return toSecondsFromCol16(p.t16); }).filter(function(v){ return typeof v === "number" && isFinite(v); });
+      var fastest = secsArr.length ? Math.min.apply(null, secsArr) : null;
+      var slowest = secsArr.length ? Math.max.apply(null, secsArr) : null;
+      var totalSecs = secsArr.reduce(function(a,b){ return a+b; }, 0);
+      var dhm = toDHM(totalSecs);
+      var dhmStr = dhm ? (dhm.days + " days, " + dhm.hours + " hours, " + dhm.mins + " minutes") : null;
+
+      // Save
+      store.col97_seconds = avgAll; store.col97 = fmtHMS(avgAll);
+      store.col97_10_seconds = avg10; store.col97_10 = fmtHMS(avg10);
+      store.col97_100_seconds = avg100; store.col97_100 = fmtHMS(avg100);
+      store.col97_1000_seconds = avg1000; store.col97_1000 = fmtHMS(avg1000);
+      store.col97_fastest_seconds = fastest; store.col97_fastest = fmtHMS(fastest);
+      store.col97_slowest_seconds = slowest; store.col97_slowest = fmtHMS(slowest);
+      store.col97_total_seconds = totalSecs; store.col97_total_dhm = dhmStr;
+
+      // Console
+      console.log("[Chart-3] Average (all, Col16 after filtering):", store.col97, "(n=", keep.length, ")");
+      console.log("[Chart-3] Average (first 10):", store.col97_10, "(n=", Math.min(10, keep.length), ")");
+      console.log("[Chart-3] Average (first 100):", store.col97_100, "(n=", Math.min(100, keep.length), ")");
+      console.log("[Chart-3] Average (first 1000):", store.col97_1000, "(n=", Math.min(1000, keep.length), ")");
+      console.log("[Chart-3] Fastest run:", store.col97_fastest);
+      console.log("[Chart-3] Slowest run:", store.col97_slowest);
+      console.log("[Chart-3] Total time (D/H/M):", store.col97_total_dhm);
+
+      // Wire DOM
+      function setText(id, val){ var el = document.getElementById(id); if (el) el.textContent = (val != null ? val : '—'); }
+      setText('chart3-avg', store.col97);
+      setText('chart3-avg10', store.col97_10);
+      setText('chart3-avg100', store.col97_100);
+      setText('chart3-avg1000', store.col97_1000);
+      setText('chart3-fastest', store.col97_fastest);
+      setText('chart3-slowest', store.col97_slowest);
+      setText('chart3-total', store.col97_total_dhm);
+      return true;
+    }catch(e){
+      console.error("[Chart-3 compute] error:", e);
+      return true; // stop retrying if code error to avoid spam
+    }
+  }
+  if (!compute()){
+    var iv = setInterval(function(){ if (compute()) clearInterval(iv); }, 200);
+    setTimeout(function(){ clearInterval(iv); }, 15000);
+  }
+})();
+</script>
