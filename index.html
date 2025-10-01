@@ -207,7 +207,7 @@
         return;
       }
       if (sc < 0 || sc > 8) {
-        showErr('Sub-Chunk must be between 0 and 15.');
+        showErr('Sub-Chunk must be between 0 and 8.');
         return;
       }
 
@@ -283,8 +283,8 @@
         showErr('Please enter valid numbers for all fields.');
         return;
       }
-      if (sc < 0 || sc > 15) {
-        showErr('Sub-Chunk must be between 0 and 15.');
+      if (sc < 0 || sc > 8) {
+        showErr('Sub-Chunk must be between 0 and 8.');
         return;
       }
 
@@ -395,7 +395,7 @@
       const btn = document.getElementById("load-btn");
       if (btn) btn.disabled = false;
       const hint = document.getElementById("hint");
-      if (hint) hint.textContent = "Choose a Number of Runs and the Current Prediction, then click Load Data.";
+      if (hint) hint.textContent = "Choose a Number of Runs as a sample size and the Current Prediction, then click Load Data.";
     });
 
     window.addEventListener('DOMContentLoaded', initTabs);
@@ -820,8 +820,8 @@
         showErr('Please enter valid numbers for all fields.');
         return;
       }
-      if (sc < 0 || sc > 15) {
-        showErr('Sub-Chunk must be between 0 and 15.');
+      if (sc < 0 || sc > 8) {
+        showErr('Sub-Chunk must be between 0 and 8.');
         return;
       }
 
@@ -960,8 +960,8 @@
         showErr('Please enter valid numbers for all fields.');
         return;
       }
-      if (sc < 0 || sc > 15) {
-        showErr('Sub-Chunk must be between 0 and 15.');
+      if (sc < 0 || sc > 8) {
+        showErr('Sub-Chunk must be between 0 and 8.');
         return;
       }
 
@@ -1144,7 +1144,7 @@
       </div>
       <div>
         <label for="sub-chunk">Sub-Chunk</label>
-        <input id="sub-chunk" type="number" min="0" max="15" step="1" placeholder="0–15" />
+        <input id="sub-chunk" type="number" min="0" max="8" step="1" placeholder="0–8" />
       </div>
       <div>
         <label for="angle-1">1st Angle of Throw</label>
