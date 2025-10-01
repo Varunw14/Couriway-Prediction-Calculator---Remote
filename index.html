@@ -1,10 +1,31 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Couriway Prediction Calculator</title>
-  <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Couriway Prediction Calculator</title>
+<style>
+
+/* Prevent overlap between Date and # of Runs in Chart 2 */
+#chart-2 table.runs-table{
+  table-layout: fixed; /* enforce column widths */
+  width: 100%;
+}
+#chart-2 table.runs-table th:nth-child(1),
+#chart-2 table.runs-table td:nth-child(1){
+  /* Date column */
+  white-space: nowrap;   /* keep on one line */
+  overflow: visible;     /* allow measuring true width */
+}
+#chart-2 table.runs-table th:nth-child(2),
+#chart-2 table.runs-table td:nth-child(2){
+  /* # of Runs column */
+  text-align: center;
+  white-space: nowrap;
+  overflow: visible;
+}
+
     :root {
       --bg: #2e1d4d;
       --panel: #3b2966;
@@ -171,8 +192,109 @@
     .calc-btn:active { transform: translateY(1px); }
     .calc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  </style>
-  <script src="https://www.gstatic.com/charts/loader.js">
+  
+    /* 100K Statistics: responsive charts grid */
+    .charts-grid{
+      display:grid;
+      gap:14px;
+      grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+    @media (min-width:560px){ .charts-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (min-width:900px){ .charts-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (min-width:1200px){ .charts-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (min-width:1500px){ .charts-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+    .chart-card{
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-elev) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 0.75rem;
+      min-height: 220px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+    }
+    .chart-card .chart-slot{
+      width:100%;
+      height:100%;
+    }
+    .chart-placeholder{
+      opacity:0.65;
+      font-size:0.95rem;
+      color:var(--muted);
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+    }
+
+    
+    .runs-table td:last-child {
+      text-align: right;
+      color: var(--text);
+    }
+
+
+    
+
+
+    
+
+
+    
+
+
+    /* Auto-fit: base styles; JS will set exact font-size per cell */
+    .runs-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .runs-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      white-space: nowrap;      /* keep one line */
+      overflow: visible;        /* allow full text (we'll shrink to fit) */
+      line-height: 1.1;
+    }
+    .runs-table td:first-child {
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .runs-title {
+      text-align:center;
+      margin: 0 0 0.5rem 0;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+
+    
+
+
+    
+
+
+    /* Ensure chart titles have no preset font-size; JS will maximize them */
+    .chart-slot h3 {
+      text-align: center;
+      margin: 0.5rem 0;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.15;
+      white-space: nowrap; /* single line */
+    }
+
+</style>
+<script src="https://www.gstatic.com/charts/loader.js">
     // ---- Stronghold calc ----
     
     // ---- Stronghold calc (compat) ----
@@ -341,8 +463,8 @@
       if (coordsEl) coordsEl.textContent = `Stronghold Nether Coordinates: ${xf}, ${zf}`;
 
 </script>
-  <script>
-    // ---- Tabs logic ----
+<script>
+// ---- Tabs logic ----
     function initTabs() {
       const tablist = document.querySelector('[role="tablist"]');
       if (!tablist) return;
@@ -1076,106 +1198,587 @@
       var z2 = (isFinite(z1) ? Math.round(z1) * 8 : '—');
       if (owEl) owEl.textContent = 'Stronghold Overworld Coordinates: ' + x2 + ', ' + z2;
     }
-
 </script>
 </head>
 <body>
-  <div class="page-title">Couriway 100K Statistics Analysis</div>
-
-  <!-- Tabs -->
-  <div class="tabs" role="tablist" aria-label="Calculator sections">
-      <button id="tab-pred" class="tab" role="tab" aria-selected="true" aria-controls="panel-pred">Prediction Calculator</button>
-      <button id="tab-stronghold" class="tab" role="tab" aria-selected="false" aria-controls="panel-stronghold">Stronghold Sheetless</button>
-    </div>
-
-    <!-- Panels -->
-    <section id="panel-pred" class="tab-panel" role="tabpanel" aria-labelledby="tab-pred">
-      <!-- Controls -->
-      <div class="controls">
-        <label for="row-limit">Number of Runs:</label>
-        <input id="row-limit" type="number" min="1" step="50" value="250" />
-        <label for="current-pred">Current Prediction:</label>
-        <input id="current-pred" type="number" step="1" placeholder="Enter prediction..." />
-        <button id="load-btn" onclick="loadAll()" disabled>Load Data</button>
-        <span id="hint" style="margin-left:0.25rem; color:var(--muted);">Loading chart library…</span>
-      </div>
-
-      <!-- Prediction Results -->
-      <div class="card hidden" id="stitched-card">
-        <h2>Prediction Results</h2>
-        <div id="statusStitched" class="status" role="status" aria-live="polite">—</div>
-        <div id="propBelow" class="metric">—</div>
-        <div id="timeYes" class="metric">—</div>
-        <div id="timeNo" class="metric">—</div>
-        <div class="spacer"></div>
-        <div id="predSuccess" class="metric">—</div>
-        <div id="predBasedYes" class="metric">—</div>
-        <div id="predBasedNo" class="metric">—</div>
-        <div class="spacer"></div>
-        <div id="safeYes" class="metric">—</div>
-        <div id="safeNo" class="metric">—</div>
-        <button id="toggle-btn-stitched" class="toggle-btn" onclick="toggleTable('stitched')">Show Results Table</button>
-        <div id="stitched-container" class="table-container collapsed">
-          <div id="stitched-table" aria-busy="true"></div>
-        </div>
-      </div>
-
-      <!-- Table 2 (hidden after stitch) -->
-      <div class="card" id="card2">
-        <h3>Prediction Results</h3>
-        <div id="status2" class="status">—</div>
-        <pre id="error2" class="error" style="display:none;"></pre>
-      </div>
-    </section>
-
-
-  <section id="panel-stronghold" class="tab-panel" role="tabpanel" aria-labelledby="tab-stronghold" hidden>
-    <div class="card">
-      <h2>Ender Eye Measurements</h2>
-      
-    <div class="grid-3" id="stronghold-controls">
-      <div>
-        <label for="ow-x">Overworld X Coordinate</label>
-        <input id="ow-x" type="number" step="1" placeholder="e.g. 1234" />
-      </div>
-      <div>
-        <label for="ow-z">Overworld Z Coordinate</label>
-        <input id="ow-z" type="number" step="1" placeholder="e.g. -567" />
-      </div>
-      <div>
-        <label for="sub-chunk">Sub-Chunk</label>
-        <input id="sub-chunk" type="number" min="0" max="8" step="1" placeholder="0–8" />
-      </div>
-      <div>
-        <label for="angle-1">1st Angle of Throw</label>
-        <input id="angle-1" type="number" step="0.1" placeholder="e.g. 37.5" />
-      </div>
-      <div>
-        <label for="angle-2">2nd Angle of Throw</label>
-        <input id="angle-2" type="number" step="0.1" placeholder="e.g. 41.2" />
-      </div>
-      <div style="display:flex;align-items:flex-end;justify-content:flex-start">
-        <button id="stronghold-calc-btn" type="button" onclick="strongholdCalc();" class="calc-btn">Calculate</button>
-      </div>
-    
-    </div>
-    </div>
-    <div class="card hidden" id="stronghold-output-card">
-      <h2>Stronghold Coordinates</h2>
-      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-  <div class="metric" id="stronghold-coords">Stronghold Nether Coordinates: x1, z1</div>
-  <button id="copy-nether-btn" class="toggle-btn" type="button" onclick="copyNetherCoords()">Copy</button>
+<div class="page-title">Couriway 100K Statistics Analysis</div>
+<!-- Tabs -->
+<div aria-label="Calculator sections" class="tabs" role="tablist">
+<button aria-controls="panel-pred" aria-selected="true" class="tab" id="tab-pred" role="tab">Prediction Calculator</button>
+<button aria-controls="panel-stronghold" aria-selected="false" class="tab" id="tab-stronghold" role="tab">Stronghold Sheetless</button>
+<button aria-controls="panel-stats" aria-selected="false" class="tab" id="tab-stats" role="tab">100K Statistics</button></div>
+<!-- Panels -->
+<section aria-labelledby="tab-pred" class="tab-panel" id="panel-pred" role="tabpanel">
+<!-- Controls -->
+<div class="controls">
+<label for="row-limit">Number of Runs:</label>
+<input id="row-limit" min="1" step="50" type="number" value="250"/>
+<label for="current-pred">Current Prediction:</label>
+<input id="current-pred" placeholder="Enter prediction..." step="1" type="number"/>
+<button disabled="" id="load-btn" onclick="loadAll()">Load Data</button>
+<span id="hint" style="margin-left:0.25rem; color:var(--muted);">Loading chart library…</span>
 </div>
-<button id="stronghold-working-toggle" class="toggle-btn" type="button" onclick="toggleStrongholdWorking()">Show Working</button>
-<div id="stronghold-working-container" class="collapsed" style="margin-top:0.5rem;"><h3 style="margin:0">Calculation Details</h3>
-  <pre id="stronghold-working" style="white-space:pre-wrap; margin-top:0.5rem; color: var(--muted)"></pre>
+<!-- Prediction Results -->
+<div class="card hidden" id="stitched-card">
+<h2>Prediction Results</h2>
+<div aria-live="polite" class="status" id="statusStitched" role="status">—</div>
+<div class="metric" id="propBelow">—</div>
+<div class="metric" id="timeYes">—</div>
+<div class="metric" id="timeNo">—</div>
+<div class="spacer"></div>
+<div class="metric" id="predSuccess">—</div>
+<div class="metric" id="predBasedYes">—</div>
+<div class="metric" id="predBasedNo">—</div>
+<div class="spacer"></div>
+<div class="metric" id="safeYes">—</div>
+<div class="metric" id="safeNo">—</div>
+<button class="toggle-btn" id="toggle-btn-stitched" onclick="toggleTable('stitched')">Show Results Table</button>
+<div class="table-container collapsed" id="stitched-container">
+<div aria-busy="true" id="stitched-table"></div>
+</div>
+</div>
+<!-- Table 2 (hidden after stitch) -->
+<div class="card" id="card2">
+<h3>Prediction Results</h3>
+<div class="status" id="status2">—</div>
+<pre class="error" id="error2" style="display:none;"></pre>
+</div>
+</section>
+<section aria-labelledby="tab-stronghold" class="tab-panel" hidden="" id="panel-stronghold" role="tabpanel">
+<div class="card">
+<h2>Ender Eye Measurements</h2>
+<div class="grid-3" id="stronghold-controls">
+<div>
+<label for="ow-x">Overworld X Coordinate</label>
+<input id="ow-x" placeholder="e.g. 1234" step="1" type="number"/>
+</div>
+<div>
+<label for="ow-z">Overworld Z Coordinate</label>
+<input id="ow-z" placeholder="e.g. -567" step="1" type="number"/>
+</div>
+<div>
+<label for="sub-chunk">Sub-Chunk</label>
+<input id="sub-chunk" max="8" min="0" placeholder="0–8" step="1" type="number"/>
+</div>
+<div>
+<label for="angle-1">1st Angle of Throw</label>
+<input id="angle-1" placeholder="e.g. 37.5" step="0.1" type="number"/>
+</div>
+<div>
+<label for="angle-2">2nd Angle of Throw</label>
+<input id="angle-2" placeholder="e.g. 41.2" step="0.1" type="number"/>
+</div>
+<div style="display:flex;align-items:flex-end;justify-content:flex-start">
+<button class="calc-btn" id="stronghold-calc-btn" onclick="strongholdCalc();" type="button">Calculate</button>
+</div>
+</div>
+</div>
+<div class="card hidden" id="stronghold-output-card">
+<h2>Stronghold Coordinates</h2>
+<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+<div class="metric" id="stronghold-coords">Stronghold Nether Coordinates: x1, z1</div>
+<button class="toggle-btn" id="copy-nether-btn" onclick="copyNetherCoords()" type="button">Copy</button>
+</div>
+<button class="toggle-btn" id="stronghold-working-toggle" onclick="toggleStrongholdWorking()" type="button">Show Working</button>
+<div class="collapsed" id="stronghold-working-container" style="margin-top:0.5rem;"><h3 style="margin:0">Calculation Details</h3>
+<pre id="stronghold-working" style="white-space:pre-wrap; margin-top:0.5rem; color: var(--muted)"></pre>
 </div>
 <div class="spacer"></div>
 <div class="metric" id="stronghold-overworld">Stronghold Overworld Coordinates: x2, z2</div>
-      <pre id="stronghold-error" class="error" style="display:none;"></pre>
-    </div>
-  </section>
-
+<pre class="error" id="stronghold-error" style="display:none;"></pre>
+</div>
+</section><section aria-labelledby="tab-stats" class="tab-panel" hidden="" id="panel-stats" role="tabpanel"><div class="card"><h2>100K Statistics</h2><div class="charts-grid"><div class="chart-card">
+  <div class="chart-slot" id="chart-1">
+    <h3 class="runs-title">Total Runs</h3>
+    <table class="runs-table">
+      <colgroup>
+        <col style="width:60%;">
+        <col style="width:40%;">
+      </colgroup>
+      <tbody>
+        <tr><td>Runs Completed</td><td id="runs-completed">—</td></tr>
+        <tr><td>Total Remaining</td><td id="total-remaining">—</td></tr>
+        <tr><td>Percentage Done</td><td id="percentage-done">—</td></tr>
+        <tr><td>Estimated Hours Left</td><td id="hours-remaining">—</td></tr>
+        <tr><td>Estimated Finish Date</td><td id="finish-date">—</td></tr>
+      </tbody>
+    </table>
   </div>
+</div>
+<div class="chart-card">
+  <div class="chart-slot" id="chart-2">
+    <h3 id="chart2-title">Daily Average Rankings</h3>
+<table class="runs-table">
+  <colgroup>
+    <col style="width:25%;">
+    <col style="width:25%;">
+    <col style="width:25%;">
+    <col style="width:25%;">
+  </colgroup>
+  <thead>
+    <tr>
+      <th style="font-size:0.85rem;">Date</th>
+      <th style="font-size:0.85rem;"># of Runs</th>
+      <th style="font-size:0.85rem;">Average Time</th>
+      <th style="font-size:0.85rem;">Rank</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Day 1</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Day 2</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Day 3</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Day 4</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>Day 5</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td><strong>Today</strong></td><td>—</td><td>—</td><td>—</td></tr>
+  </tbody>
+</table>
+  </div>
+</div><div class="chart-card"><div class="chart-slot" id="chart-3"></div></div><div class="chart-card"><div class="chart-slot" id="chart-4"></div></div><div class="chart-card"><div class="chart-slot" id="chart-5"></div></div><div class="chart-card"><div class="chart-slot" id="chart-6"></div></div><div class="chart-card"><div class="chart-slot" id="chart-7"></div></div><div class="chart-card"><div class="chart-slot" id="chart-8"></div></div><div class="chart-card"><div class="chart-slot" id="chart-9"></div></div><div class="chart-card"><div class="chart-slot" id="chart-10"></div></div><div class="chart-card"><div class="chart-slot" id="chart-11"></div></div><div class="chart-card"><div class="chart-slot" id="chart-12"></div></div><div class="chart-card"><div class="chart-slot" id="chart-13"></div></div><div class="chart-card"><div class="chart-slot" id="chart-14"></div></div><div class="chart-card"><div class="chart-slot" id="chart-15"></div></div></div></div></section>
+
+<script>
+(function(){
+  const MIN_PX = 6;     // allow very small to ensure full visibility
+  const MAX_PX = 24;    // sensible upper bound
+  const TITLE_MAX = 28;
+
+  function fitElement(el, maxPx, minPx){
+    if(!el) return;
+    // Start high, then shrink via binary search
+    let low = minPx, high = maxPx, best = minPx;
+    // temporarily ensure measurement environment
+    el.style.whiteSpace = 'nowrap';
+    // binary search for the largest size that fits
+    for(let i=0;i<20;i++){
+      const mid = (low+high)/2;
+      el.style.fontSize = mid + 'px';
+      // Force reflow
+      const fits = el.scrollWidth <= el.clientWidth + 0.5;
+      if(fits){
+        best = mid;
+        low = mid;
+      } else {
+        high = mid;
+      }
+      if (Math.abs(high-low) < 0.25) break;
+    }
+    el.style.fontSize = best + 'px';
+  }
+
+  function fitRunsTable(){
+    const root = document.querySelector('#chart-1 .runs-table');
+    if(!root) return;
+    const tds = root.querySelectorAll('td');
+    // Set them briefly to MAX so we measure natural width first
+    tds.forEach(td => { td.style.fontSize = MAX_PX + 'px'; });
+    // Fit each cell to its column box
+    tds.forEach(td => fitElement(td, MAX_PX, MIN_PX));
+
+    // Also fit the title
+    const title = document.querySelector('#chart-1 .runs-title');
+    if(title){
+      title.style.fontSize = TITLE_MAX + 'px';
+      fitElement(title, TITLE_MAX, MIN_PX);
+    }
+  }
+
+  const debounced = (fn, ms=50) => {
+    let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(null,args), ms); };
+  };
+
+  function installObservers(){
+    const container = document.getElementById('chart-1');
+    if(!container) return;
+
+    // ResizeObserver for container size changes
+    if('ResizeObserver' in window){
+      const ro = new ResizeObserver(debounced(fitRunsTable, 50));
+      ro.observe(container);
+    } else {
+      window.addEventListener('resize', debounced(fitRunsTable, 100));
+    }
+
+    // MutationObserver to refit when values change
+    const mo = new MutationObserver(debounced(fitRunsTable, 20));
+    mo.observe(container, { subtree: true, characterData: true, childList: true });
+
+    // Initial fit
+    requestAnimationFrame(fitRunsTable);
+    window.addEventListener('load', fitRunsTable);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installObservers);
+  } else {
+    installObservers();
+  }
+})();
+</script>
+
+
+
+
+
+<script>
+// Reuse existing Google Charts + loadViaJSONP flow, but fetch all cols and read index 92 (Col93)
+
+  // Background store for Col87 (time per run) & Col88 (date EST)
+  window.col8788Store = { times: [], dates: [], loaded: false };
+
+  (function(){
+  function startAutoFill(){
+    if (typeof chartsReady !== 'undefined' && chartsReady === true && typeof loadViaJSONP === 'function') {
+      try {
+        loadViaJSONP(GID_PROCESSED, "handleRunsTop5", "select * limit 5");
+              // Background load of ALL rows for Col87 (time/run) and Col88 (date EST)
+        loadViaJSONP(GID_PROCESSED, "handleCols8788", "select *");
+} catch(e) {
+        console.error("loadViaJSONP failed:", e);
+      }
+    } else {
+      setTimeout(startAutoFill, 80);
+    }
+  }
+
+  
+window.handleRunsTop5 = function(response){
+  try{
+    if (!response || response.status !== "ok") {
+      console.error("RunsTop5 response not ok:", response);
+      const cell = document.getElementById('runs-completed');
+      if (cell && !cell.textContent.trim()) cell.textContent = '—';
+      if (typeof window.updateStats === 'function') window.updateStats();
+      return;
+    }
+    const dt = new google.visualization.DataTable(response.table);
+    const targetCol = 92; // zero-based index => column 93
+    const rows = dt.getNumberOfRows();
+    const cols = dt.getNumberOfColumns();
+    console.log("[AutoFill] rows:", rows, "cols:", cols, "reading col index:", targetCol);
+
+    if (targetCol >= cols) {
+      console.error("Target column 93 not found. Columns available:", cols);
+      const cell = document.getElementById('runs-completed');
+      if (cell && !cell.textContent.trim()) cell.textContent = '—';
+      if (typeof window.updateStats === 'function') window.updateStats();
+      return;
+    }
+    const values = [];
+    // Emulate existing code pattern: skip first data row if needed
+    for (let r = 1; r < Math.min(rows, 5); r++) { // first 5 rows, starting at 1
+      const v = dt.getValue(r, targetCol);
+      if (v == null) continue;
+      const num = typeof v === 'number' ? v : parseInt(String(v).replace(/,/g, ''), 10);
+      if (!isNaN(num)) values.push(num);
+    }
+    const maxVal = values.length ? Math.max.apply(null, values) : null;
+    console.log("[AutoFill] Col93 top5 (skipping row 0):", values, "max:", maxVal);
+    const cell = document.getElementById('runs-completed');
+    if (cell) cell.textContent = (maxVal != null ? maxVal : '—');
+    if (typeof window.updateStats === 'function') window.updateStats();
+  } catch(e){
+    console.error("RunsTop5 handler error:", e);
+    const cell = document.getElementById('runs-completed');
+    if (cell && !cell.textContent.trim()) cell.textContent = '—';
+    if (typeof window.updateStats === 'function') window.updateStats();
+  }
+};
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startAutoFill);
+  } else {
+    startAutoFill();
+  }
+})();
+</script>
+
+
+
+
+
+<script>
+(function(){
+  function toNumber(text){
+    if (text == null) return NaN;
+    const n = parseInt(String(text).replace(/,/g,'').trim(), 10);
+    return isNaN(n) ? NaN : n;
+  }
+  function fmt(n){ return n.toLocaleString ? n.toLocaleString() : String(n); }
+
+  window.updateStats = function(){
+    const rcEl = document.getElementById('runs-completed');
+    const trEl = document.getElementById('total-remaining');
+    const pdEl = document.getElementById('percentage-done');
+    if (!rcEl) return;
+    const rc = toNumber(rcEl.textContent);
+    if (!isFinite(rc)) {
+      if (trEl) trEl.textContent = '—';
+      if (pdEl) pdEl.textContent = '—';
+      return;
+    }
+    const remaining = Math.max(0, 100000 - Math.max(0, Math.min(100000, rc)));
+    if (trEl) trEl.textContent = fmt(remaining);
+    const pct = (rc / 100000) * 100;
+    if (pdEl) pdEl.textContent = pct.toFixed(2) + "%";
+
+    // Trigger resize/autofit if needed
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        if (typeof window !== 'undefined' && window.dispatchEvent) {
+          window.dispatchEvent(new Event('resize'));
+        }
+      });
+    }
+  };
+
+  // Run once on load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(window.updateStats, 50));
+  } else {
+    setTimeout(window.updateStats, 50);
+  }
+})();
+</script>
+
+
+
+
+
+
+
+
+<script>
+(function(){
+  function getInnerWidth(el){
+    if (!el) return 0;
+    const cs = getComputedStyle(el);
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    return Math.max(0, el.clientWidth - pad);
+  }
+
+  function maximizeSingleLine(el){
+    if (!el) return;
+    const container = el.parentElement; // .chart-slot
+    const maxWidth = getInnerWidth(container) || container.clientWidth || el.offsetWidth;
+    if (!maxWidth) return;
+
+    let lo = 6, hi = 96, best = lo;
+    // Warm start: try something big first to avoid too-small look
+    el.style.fontSize = hi + "px";
+    // Binary search for largest size that fits on one line
+    for (let i = 0; i < 20; i++) {
+      const mid = (lo + hi) / 2;
+      el.style.fontSize = mid + "px";
+      const fits = el.scrollWidth <= maxWidth + 0.5; // small fudge
+      if (fits) { best = mid; lo = mid; } else { hi = mid; }
+      if (Math.abs(hi - lo) < 0.25) break;
+    }
+    el.style.fontSize = best + "px";
+  }
+
+  function fitAllTitles(){
+    document.querySelectorAll(".chart-slot h3").forEach(maximizeSingleLine);
+  }
+
+  // Keep the title maximized as container resizes or layout changes
+  function installObservers(){
+    const chart2 = document.getElementById("chart-2");
+    if (chart2 && "ResizeObserver" in window) {
+      const ro = new ResizeObserver(() => fitAllTitles());
+      ro.observe(chart2);
+    } else {
+      window.addEventListener("resize", fitAllTitles);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => { fitAllTitles(); installObservers(); });
+  } else {
+    fitAllTitles(); installObservers();
+  }
+})();
+</script>
+
+
+<script>
+// === BEGIN handleCols8788 (group & average by EST date) ===
+window.handleCols8788 = function(response) {
+  try {
+    if (!response || response.status !== "ok") {
+      console.error("[Cols87/88] response not ok:", response);
+      return;
+    }
+    const dt = new google.visualization.DataTable(response.table);
+    const rows = dt.getNumberOfRows();
+    const cols = dt.getNumberOfColumns();
+    const c87 = 86; // zero-based index for column 87 (time per run h:mm:ss)
+    const c88 = 87; // zero-based index for column 88 (date played EST)
+    if (c87 >= cols || c88 >= cols) {
+      console.error("[Cols87/88] Missing expected columns. Available:", cols);
+      return;
+    }
+
+    const times = [];
+    const dates = [];
+    for (let r = 1; r < rows; r++) {
+      const t = dt.getValue(r, c87);
+      const d = dt.getValue(r, c88);
+      if (t != null) times.push(String(t));
+      if (d != null) dates.push(String(d));
+    }
+
+    console.log("[Cols87] first 3:", times.slice(0,3));
+    console.log("[Cols88] first 3:", dates.slice(0,3));
+
+    if (!window.col8788Store) window.col8788Store = { times: [], dates: [], loaded: false };
+    window.col8788Store.times = times;
+    window.col8788Store.dates = dates;
+    window.col8788Store.loaded = true;
+
+    function parseHMS(str) {
+      if (!str) return null;
+      const m = String(str).trim().match(/^(\d+):([0-5]?\d):([0-5]?\d)$/);
+      if (!m) return null;
+      const h = parseInt(m[1], 10);
+      const mi = parseInt(m[2], 10);
+      const s = parseInt(m[3], 10);
+      return h * 3600 + mi * 60 + s;
+    }
+    function fmtHMS(total) {
+      if (total == null || isNaN(total)) return null;
+      total = Math.round(total);
+      const h = Math.floor(total / 3600);
+      const rem = total % 3600;
+      const m = Math.floor(rem / 60);
+      const s = rem % 60;
+      return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+
+    const groups = new Map();
+    const n = Math.min(times.length, dates.length);
+    for (let i = 0; i < n; i++) {
+      const secs = parseHMS(times[i]);
+      const raw = dates[i];
+      if (secs == null || !raw) continue;
+      const parts = String(raw).trim().split(/\s+/);
+      const displayDate = parts[0] || "";
+      const g = groups.get(displayDate);
+      if (g) {
+        g.sum += secs; g.count += 1;
+      } else {
+        groups.set(displayDate, { sum: secs, count: 1 });
+      }
+    }
+
+    const averages = [];
+    for (const [displayDate, acc] of groups.entries()) {
+      if (acc.count >= 5) { // Only include dates with 5 or more runs
+        const avg = acc.sum / acc.count;
+        averages.push({ displayDate, avgSeconds: avg, avgHMS: fmtHMS(avg), count: acc.count });
+      }
+    }
+
+    averages.sort((a, b) => a.avgSeconds - b.avgSeconds);
+
+    
+
+    
+    // Expose for Chart 2 renderer
+    window.col8788AveragesByDate = averages;
+// Now that the array is ready, render into Chart 2 when the DOM is ready
+    const runPopulate = () => populateChart2TopN(5);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', runPopulate, { once:true });
+    } else {
+      runPopulate();
+    }
+    console.log("[Cols87 by Date, n>=5, shortest->longest] first 3 averages:", averages.slice(0, 10).map(x => ({ date: x.displayDate, avg: x.avgHMS, n: x.count })));
+  } catch (e) {
+    console.error("[Cols87/88] handler error:", e);
+  }
+};
+
+    // Patched Chart 2 population block will be inserted below </script>
+
+
+<script>
+// Fill the first N rows of Chart 2 from window.col8788AveragesByDate
+function populateChart2TopN(n = 5){
+  try{
+    const arr = Array.isArray(window.col8788AveragesByDate) ? window.col8788AveragesByDate : [];
+    if (!arr.length) return; // nothing to render yet
+
+    const tbody = document.querySelector('#chart-2 table.runs-table tbody');
+    if (!tbody) return;
+
+    // take the first n ranked items and map into the first n rows
+    const rows = Array.from(tbody.querySelectorAll('tr')).slice(0, n);
+    arr.slice(0, n).forEach((item, idx) => {
+      const cells = rows[idx] ? rows[idx].querySelectorAll('td') : null;
+      if (!cells || cells.length < 4) return;
+      
+      // center the # of Runs column without affecting global CSS
+      if (cells[1]) { cells[1].style.textAlign = 'center'; cells[1].style.whiteSpace = 'nowrap'; }
+cells[0].textContent = String(item.displayDate || '—');  // Date
+      cells[1].textContent = String(item.count ?? '—');        // # of Runs
+      cells[2].textContent = String(item.avgHMS || '—');       // Average Time
+      cells[3].textContent = String(idx + 1);                  // Rank
+    });
+  } catch(e){
+    console.error("[Chart2 Populate] error:", e);
+  }
+}
+</script>
+
+
+<script>
+// Shrink-to-fit utility specifically for Chart 2 cells
+(function(){
+  function fitText(el, opts){
+    if (!el) return;
+    const minPx = (opts && opts.minPx) || 10;
+    const maxPx = (opts && opts.maxPx) || 16;
+    const step  = (opts && opts.step)  || 0.5;
+    // Reset to max first so we can shrink down
+    el.style.fontSize = maxPx + 'px';
+    // If it already fits, done
+    if (el.scrollWidth <= el.clientWidth) return;
+    // Shrink until it fits or we hit min
+    let size = maxPx;
+    let guard = 0;
+    while (size > minPx && el.scrollWidth > el.clientWidth && guard < 100){
+      size -= step;
+      el.style.fontSize = size + 'px';
+      guard++;
+    }
+  }
+
+  // Expose for populateChart2TopN to call per-cell
+  window.__fitChart2CellText = fitText;
+
+  // Refit on resize for robustness
+  const chart2 = document.querySelector('#chart-2 table.runs-table');
+  if (chart2 && 'ResizeObserver' in window){
+    const ro = new ResizeObserver(() => {
+      const rows = chart2.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells[0]) window.__fitChart2CellText(cells[0], {minPx:10, maxPx:16, step:0.5});
+        if (cells[1]) window.__fitChart2CellText(cells[1], {minPx:10, maxPx:16, step:0.5});
+      });
+    });
+    ro.observe(chart2);
+  } else {
+    // Fallback: refit on window resize
+    window.addEventListener('resize', () => {
+      const rows = document.querySelectorAll('#chart-2 table.runs-table tbody tr');
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells[0]) window.__fitChart2CellText(cells[0], {minPx:10, maxPx:16, step:0.5});
+        if (cells[1]) window.__fitChart2CellText(cells[1], {minPx:10, maxPx:16, step:0.5});
+      });
+    });
+  }
+})();
+</script>
+
 </body>
 </html>
