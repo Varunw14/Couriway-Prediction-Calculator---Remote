@@ -4,8 +4,22 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
+<a href="https://www.twitch.tv/couriway" target="_blank" rel="noopener noreferrer">
+  <img src="couriway_logo.png" alt="Couri Logo" class="logo">
+</a>
 <title>Couriway Prediction Calculator</title>
+<link href="/images/favicon.ico" rel="icon" type="image/x-icon"/>
 <style>
+
+.logo {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 50px;
+  height: 50px;
+  border-radius: 6px; /* rounded corners */
+  object-fit: cover; /* makes sure square images scale nicely */
+}
 
 /* Prevent overlap between Date and # of Runs in Chart 2 */
 #chart-2 table.runs-table{
@@ -292,6 +306,38 @@
       line-height: 1.15;
       white-space: nowrap; /* single line */
     }
+
+
+/* Live status pill styles */
+.live-pill{
+  position: absolute;
+  top: 20px;
+  left: 70px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: var(--shadow);
+  user-select: none;
+}
+
+.live-dot{
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  background: #aaa;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.2) inset;
+}
+
+.live-pill.is-live .live-dot{ background: #22c55e; }
+.live-pill.is-off  .live-dot{ background: #ef4444; }
 
 </style>
 <script src="https://www.gstatic.com/charts/loader.js">
@@ -1199,7 +1245,6 @@
       if (owEl) owEl.textContent = 'Stronghold Overworld Coordinates: ' + x2 + ', ' + z2;
     }
 </script>
-
 <style>
 #chart3-total {
   font-size: 0.85em;
@@ -1207,9 +1252,258 @@
   word-break: break-word;
 }
 </style>
-
 </head>
 <body>
+
+<!-- Live status pill next to the logo -->
+<div class="live-pill" id="twitch-live-pill" aria-live="polite" title="Twitch live status">
+  <span class="live-dot" id="twitch-live-dot"></span>
+  <span id="twitch-live-text">Checking…</span>
+</div>
+
+<script>
+// === Chart-2 "Today" (EST) — v7 unified boot (defines debugChart2TodayScan & forceChart2TodayUpdate) ===
+(function(){
+  console.info("[Chart-2 Today v7] boot");
+
+  const pad = n => String(n).padStart(2,'0');
+  const formatMMDDYYYY = d => `${pad(d.getMonth()+1)}/${pad(d.getDate())}/${d.getFullYear()}`;
+  const formatISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  function nyDSTOn(date){
+    const y = date.getUTCFullYear();
+    function nthDowOfMonth(n, dow, month){
+      const d = new Date(Date.UTC(y, month, 1));
+      const firstDow = d.getUTCDay();
+      const day = 1 + ((7 + dow - firstDow) % 7) + (n-1)*7;
+      return new Date(Date.UTC(y, month, day));
+    }
+    const dstStart = nthDowOfMonth(2, 0, 2);
+    const dstEnd   = nthDowOfMonth(1, 0, 10);
+    return date >= dstStart && date < dstEnd;
+  }
+
+  function computeNewYorkNow(){
+    const nowUTC = new Date();
+    try{
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).formatToParts(nowUTC);
+      const map = Object.fromEntries(parts.map(p=>[p.type,p.value]));
+      const dt = new Date(`${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}:${map.second}`);
+      return { date: dt, via: 'Intl' };
+    }catch(e){
+      const isDST = nyDSTOn(nowUTC);
+      const offsetHours = isDST ? -4 : -5;
+      const dt = new Date(nowUTC.getTime() + offsetHours*60*60*1000);
+      return { date: dt, via: 'Fallback(' + (isDST ? 'EDT' : 'EST') + ')' };
+    }
+  }
+
+  function todayEST(){
+    const ny = computeNewYorkNow();
+    const d = ny.date;
+    const t = { mmddyyyy: formatMMDDYYYY(d), iso: formatISO(d), via: ny.via };
+    console.warn("[Chart-2 Today v7] EST today:", t.mmddyyyy, "| ISO:", t.iso, "| via:", t.via);
+    return t;
+  }
+
+  function looksLikeDateObject(o){
+    if (!o || typeof o !== 'object') return false;
+    const cand = (o.displayDate || o.date || o.Date || o.day || o.Day);
+    if (!cand) return false;
+    const s = String(cand).trim();
+    return /^\d{2}\/\d{2}\/\d{4}$/.test(s) || /^\d{4}-\d{2}-\d{2}$/.test(s);
+  }
+  function extractDateString(o){
+    const cand = (o.displayDate || o.date || o.Date || o.day || o.Day);
+    return String(cand).trim();
+  }
+  function normalizeToMMDDYYYY(s){
+    s = String(s).trim();
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)){
+      const [y,m,d] = s.split('-');
+      return m+'/'+d+'/'+y;
+    }
+    return s;
+  }
+
+  const PREFERRED_KEYS = [
+    'col8788AveragesByDateAll','col8788AveragesByDateFull','col8788AveragesByDate',
+    'allAveragesByDate','averagesByDateAll','averagesByDate'
+  ];
+
+  function findCandidateArraysOnWindow(){
+    const found = [];
+    PREFERRED_KEYS.forEach(k => { if (Array.isArray(window[k])) found.push({key:k, arr:window[k]}); });
+    if (!found.length){
+      for (const k in window){
+        try{
+          const v = window[k];
+          if (Array.isArray(v) && v.length && v.slice(0,5).some(looksLikeDateObject)){
+            found.push({key:k, arr:v});
+          }
+        }catch(_e){}
+      }
+    }
+    return found;
+  }
+
+  function buildFullAveragesList(){
+    const candidates = findCandidateArraysOnWindow();
+    const byDate = new Map();
+    const provenance = [];
+    candidates.forEach(({key, arr}) => {
+      provenance.push(key);
+      arr.forEach(item => {
+        if (!looksLikeDateObject(item)) return;
+        const dateStr = normalizeToMMDDYYYY(extractDateString(item));
+        if (!dateStr) return;
+        const prev = byDate.get(dateStr);
+        const score = (item && typeof item.avgSeconds === 'number' ? 2 : 0) + (item && typeof item.count === 'number' ? 1 : 0);
+        const prevScore = prev ? ((typeof prev.avgSeconds === 'number' ? 2 : 0) + (typeof prev.count === 'number' ? 1 : 0)) : -1;
+        if (score >= prevScore){
+          byDate.set(dateStr, {
+            displayDate: dateStr,
+            avgSeconds: (typeof item.avgSeconds === 'number' ? item.avgSeconds : prev ? prev.avgSeconds : undefined),
+            avgHMS: (item.avgHMS || (prev ? prev.avgHMS : undefined)),
+            count: (typeof item.count === 'number' ? item.count : prev ? prev.count : undefined)
+          });
+        }
+      });
+    });
+    let out = Array.from(byDate.values());
+    out.sort((a,b)=>{
+      const aa = (typeof a.avgSeconds === 'number') ? a.avgSeconds : Infinity;
+      const bb = (typeof b.avgSeconds === 'number') ? b.avgSeconds : Infinity;
+      if (aa !== bb) return aa - bb;
+      return (a.displayDate || '').localeCompare(b.displayDate || '');
+    });
+    return { list: out, provenance, uniqueDates: out.length };
+  }
+
+  function updateTodayRowFull(){
+    try{
+      const t = todayEST();
+      const { list, provenance, uniqueDates } = buildFullAveragesList();
+
+      const preferredFound = PREFERRED_KEYS.filter(k => Array.isArray(window[k]));
+      console.info("[Chart-2 Today v7] preferred arrays:", preferredFound.map(k => ({key:k,len:window[k]?.length||0})));
+      console.log("[Chart-2 Today v7] full list size:", uniqueDates, "from:", provenance);
+
+      if (!list.length){
+        console.warn("[Chart-2 Today v7] no dates available yet (only top-10 may be exposed).");
+        return false;
+      }
+
+      const idx = list.findIndex(it => String(it.displayDate).trim() === t.mmddyyyy);
+      if (idx === -1){
+        console.warn("[Chart-2 Today v7] today not found in full list:", t.mmddyyyy);
+        return false;
+      }
+
+      const item = list[idx];
+      const tbody = document.querySelector('#chart-2 table.runs-table tbody');
+      if (!tbody){ console.warn("[Chart-2 Today v7] chart-2 tbody not found"); return false; }
+
+      const rows = tbody.querySelectorAll('tr');
+      const todayRow = rows[rows.length - 1];
+      if (!todayRow){ console.warn("[Chart-2 Today v7] today row not found"); return false; }
+
+      const cells = todayRow.querySelectorAll('td');
+      if (cells[1]) { cells[1].textContent = String(item.count ?? '—'); cells[1].style.textAlign = 'center'; cells[1].style.whiteSpace = 'nowrap'; }
+      if (cells[2]) { cells[2].textContent = String(item.avgHMS || '—'); }
+      if (cells[3]) { cells[3].textContent = String(idx + 1); }
+
+      if (window.__fitChart2CellText){
+        if (cells[0]) window.__fitChart2CellText(cells[0], {minPx:10, maxPx:16, step:0.5});
+        if (cells[1]) window.__fitChart2CellText(cells[1], {minPx:10, maxPx:16, step:0.5});
+      }
+
+      const todayObj = { dateKeyMMDDYYYY: t.mmddyyyy, dateKeyISO: t.iso, matchedIndex: idx, rank: idx+1,
+                         avgSeconds: item.avgSeconds, avgHMS: item.avgHMS, count: item.count,
+                         listSize: uniqueDates, provenance: provenance };
+      console.log("[Chart-2 Today v7] ✅ populated Today row", todayObj);
+      window.chart2Today = todayObj;
+
+      try{
+        const h = document.querySelector('#chart-2 h3, #chart-2 h2, #chart-2 .title') || document.querySelector('#chart-2');
+        if (h){
+          const existing = h.parentNode.querySelector('.today-est-badge');
+          if (existing) existing.remove();
+          const badge = document.createElement('div');
+          badge.className = 'today-est-badge';
+          badge.textContent = "Today (EST): " + t.mmddyyyy + " • in " + uniqueDates + " dates";
+          badge.style.fontSize = '12px'; badge.style.opacity = '0.75'; badge.style.margin = '4px 0 8px';
+          h.parentNode.insertBefore(badge, h.nextSibling);
+        }
+      }catch(_e){}
+
+      return true;
+    }catch(e){
+      console.error("[Chart-2 Today v7] update error:", e);
+      return false;
+    }
+  }
+
+  // Manual hooks
+  window.debugESTToday = function(){ return todayEST(); };
+  window.debugChart2TodayScan = function(){
+    const { list, provenance, uniqueDates } = buildFullAveragesList();
+    console.info("[Chart-2 Today v7] scan:", {uniqueDates, provenance, sample:list.slice(0,3)});
+    return {uniqueDates, provenance, sample:list.slice(0,3)};
+  };
+  window.forceChart2TodayUpdate = function(){ console.info("[Chart-2 Today v7] manual force update"); return updateTodayRowFull(); };
+
+  function scheduleRetries(){
+    let tries = 0;
+    const maxTries = 600;
+    const iv = setInterval(function(){
+      tries++;
+      if (updateTodayRowFull() || tries >= maxTries){
+        clearInterval(iv);
+      }
+    }, 200);
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', scheduleRetries, { once:true });
+  } else {
+    scheduleRetries();
+  }
+  window.addEventListener('load', function(){ setTimeout(updateTodayRowFull, 0); });
+
+  (function hookNetwork(){
+    try{
+      if (window.fetch){
+        const _fetch = window.fetch;
+        window.fetch = function(){
+          return _fetch.apply(this, arguments).then(function(res){
+            setTimeout(updateTodayRowFull, 0);
+            return res;
+          });
+        };
+      }
+      if (window.XMLHttpRequest){
+        const _open = XMLHttpRequest.prototype.open;
+        const _send = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.open = function(){ this.__chart2_hooked = true; return _open.apply(this, arguments); };
+        XMLHttpRequest.prototype.send = function(){
+          if (this.__chart2_hooked){
+            this.addEventListener('loadend', function(){ setTimeout(updateTodayRowFull, 0); });
+          }
+          return _send.apply(this, arguments);
+        };
+      }
+    }catch(e){
+      console.warn("[Chart-2 Today v7] network hooks failed", e);
+    }
+  })();
+})();
+</script>
 <div class="page-title">Couriway 100K Statistics Analysis</div>
 <!-- Tabs -->
 <div aria-label="Calculator sections" class="tabs" role="tablist">
@@ -1221,7 +1515,7 @@
 <!-- Controls -->
 <div class="controls">
 <label for="row-limit">Number of Runs:</label>
-<input id="row-limit" min="1" step="50" type="number" value="250"/>
+<input id="row-limit" min="1" step="50" type="number" value="500"/>
 <label for="current-pred">Current Prediction:</label>
 <input id="current-pred" placeholder="Enter prediction..." step="1" type="number"/>
 <button disabled="" id="load-btn" onclick="loadAll()">Load Data</button>
@@ -1297,70 +1591,100 @@
 <pre class="error" id="stronghold-error" style="display:none;"></pre>
 </div>
 </section><section aria-labelledby="tab-stats" class="tab-panel" hidden="" id="panel-stats" role="tabpanel"><div class="card"><h2>100K Statistics</h2><div class="charts-grid"><div class="chart-card">
-  <div class="chart-slot" id="chart-1">
-    <h3 class="runs-title">Total Runs</h3>
-    <table class="runs-table">
-      <colgroup>
-        <col style="width:60%;">
-        <col style="width:40%;">
-      </colgroup>
-      <tbody>
-        <tr><td>Runs Completed</td><td id="runs-completed">—</td></tr>
-        <tr><td>Total Remaining</td><td id="total-remaining">—</td></tr>
-        <tr><td>Percentage Done</td><td id="percentage-done">—</td></tr>
-        <tr><td>Estimated Hours Left</td><td id="hours-remaining">—</td></tr>
-        <tr><td>Estimated Finish Date</td><td id="finish-date">—</td></tr>
-      </tbody>
-    </table>
-  </div>
+<div class="chart-slot" id="chart-1">
+<h3 class="runs-title">Total Runs</h3>
+<table class="runs-table">
+<colgroup>
+<col style="width:60%;"/>
+<col style="width:40%;"/>
+</colgroup>
+<tbody>
+<tr><td>Runs Completed</td><td id="runs-completed">—</td></tr>
+<tr><td>Total Remaining</td><td id="total-remaining">—</td></tr>
+<tr><td>Percentage Done</td><td id="percentage-done">—</td></tr>
+<tr><td>Estimated Hours Left</td><td id="hours-remaining">—</td></tr>
+<tr><td>Estimated Finish Date</td><td id="finish-date">—</td></tr>
+</tbody>
+</table>
+</div>
 </div>
 <div class="chart-card">
-  <div class="chart-slot" id="chart-2">
-    <h3 id="chart2-title">Daily Average Rankings</h3>
+<div class="chart-slot" id="chart-2">
+<h3 id="chart2-title">Daily Average Rankings</h3>
 <table class="runs-table">
-  <colgroup>
-    <col style="width:25%;">
-    <col style="width:25%;">
-    <col style="width:25%;">
-    <col style="width:25%;">
-  </colgroup>
-  <thead>
-    <tr>
-      <th style="font-size:0.85rem;">Date</th>
-      <th style="font-size:0.85rem;"># of Runs</th>
-      <th style="font-size:0.85rem;">Average Time</th>
-      <th style="font-size:0.85rem;">Rank</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr><td>Day 1</td><td>—</td><td>—</td><td>—</td></tr>
-    <tr><td>Day 2</td><td>—</td><td>—</td><td>—</td></tr>
-    <tr><td>Day 3</td><td>—</td><td>—</td><td>—</td></tr>
-    <tr><td>Day 4</td><td>—</td><td>—</td><td>—</td></tr>
-    <tr><td>Day 5</td><td>—</td><td>—</td><td>—</td></tr>
-    <tr><td><strong>Today</strong></td><td>—</td><td>—</td><td>—</td></tr>
-  </tbody>
+<colgroup>
+<col style="width:25%;"/>
+<col style="width:25%;"/>
+<col style="width:25%;"/>
+<col style="width:25%;"/>
+</colgroup>
+<thead>
+<tr>
+<th style="font-size:0.85rem;">Date</th>
+<th style="font-size:0.85rem;"># of Runs</th>
+<th style="font-size:0.85rem;">Average Time</th>
+<th style="font-size:0.85rem;">Rank</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>Day 1</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Day 2</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Day 3</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Day 4</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Day 5</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td><strong>Today</strong></td><td>—</td><td>—</td><td>—</td></tr>
+</tbody>
 </table>
-  </div>
+</div>
 </div><div class="chart-card"><div class="chart-slot" id="chart-3">
-    <h3 class="runs-title">1.16.1 Stats</h3>
-    <table class="runs-table">
-      <colgroup>
-        <col style="width:60%;">
-        <col style="width:40%;">
-      </colgroup>
-      <tbody>
-        <tr><td>Average Time</td><td><span id="chart3-avg">—</span></td></tr>
-        <tr><td>Average Time (Last 10)</td><td><span id="chart3-avg10">—</span></td></tr>
-        <tr><td>Average Time (Last 100)</td><td><span id="chart3-avg100">—</span></td></tr>
-        <tr><td>Average Time (Last 1000)</td><td><span id="chart3-avg1000">—</span></td></tr>
-        <tr><td>Fastest Run</td><td><span id="chart3-fastest">—</span></td></tr>
-        <tr><td>Slowest Run</td><td><span id="chart3-slowest">—</span></td></tr>
-        <tr><td>Total Time Spent Running</td><td><span id="chart3-total">—</span></td></tr>
-      </tbody>
-    </table>
-  </div></div><div class="chart-card"><div class="chart-slot" id="chart-4"></div></div><div class="chart-card"><div class="chart-slot" id="chart-5"></div></div><div class="chart-card"><div class="chart-slot" id="chart-6"></div></div><div class="chart-card"><div class="chart-slot" id="chart-7"></div></div><div class="chart-card"><div class="chart-slot" id="chart-8"></div></div><div class="chart-card"><div class="chart-slot" id="chart-9"></div></div><div class="chart-card"><div class="chart-slot" id="chart-10"></div></div><div class="chart-card"><div class="chart-slot" id="chart-11"></div></div><div class="chart-card"><div class="chart-slot" id="chart-12"></div></div><div class="chart-card"><div class="chart-slot" id="chart-13"></div></div><div class="chart-card"><div class="chart-slot" id="chart-14"></div></div><div class="chart-card"><div class="chart-slot" id="chart-15"></div></div></div></div></section>
-
+<h3 class="runs-title">1.16.1 Stats</h3>
+<table class="runs-table">
+<colgroup>
+<col style="width:60%;"/>
+<col style="width:40%;"/>
+</colgroup>
+<tbody>
+<tr><td>Average Time</td><td><span id="chart3-avg">—</span></td></tr>
+<tr><td>Average Time (Last 10)</td><td><span id="chart3-avg10">—</span></td></tr>
+<tr><td>Average Time (Last 100)</td><td><span id="chart3-avg100">—</span></td></tr>
+<tr><td>Average Time (Last 1000)</td><td><span id="chart3-avg1000">—</span></td></tr>
+<tr><td>Fastest Run</td><td><span id="chart3-fastest">—</span></td></tr>
+<tr><td>Slowest Run</td><td><span id="chart3-slowest">—</span></td></tr>
+<tr><td>Total Time Spent Running</td><td><span id="chart3-total">—</span></td></tr>
+</tbody>
+</table>
+</div></div><div class="chart-card"><div class="chart-slot" id="chart-4">
+<h3 class="runs-title">Top 10 Speedruns</h3>
+<table class="runs-table">
+<colgroup>
+<col style="width:33%;"/>
+<col style="width:33%;"/>
+<col style="width:34%;"/>
+</colgroup>
+<thead>
+<tr>
+<th style="text-align:center;">Day</th>
+<th style="text-align:center;">Time</th>
+<th style="text-align:center;">Run</th>
+</tr>
+</thead>
+<tbody><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr><tr><td style="text-align:center;">—</td><td style="text-align:center;">—</td><td style="text-align:center;">—</td></tr></tbody>
+</table>
+</div></div><div class="chart-card"><div class="chart-slot" id="chart-5">
+<h3 class="runs-title">Nether Entries</h3>
+<table class="runs-table">
+<colgroup>
+<col style="width:60%;"/>
+<col style="width:40%;"/>
+</colgroup>
+<tbody><tr><td>Average Nether Entry</td><td><span id="chart5-entry1">—</span></td></tr>
+<tr><td>Average Nether Entry (Last 10)</td><td><span id="chart5-entry2">—</span></td></tr>
+<tr><td>Average Nether Entry (Last 100)</td><td><span id="chart5-entry3">—</span></td></tr>
+<tr><td>Average Nether Entry (Last 1000)</td><td><span id="chart5-entry4">—</span></td></tr>
+<tr><td>Fastest Entry</td><td><span id="chart5-entry5">—</span></td></tr>
+<tr><td>Slowest Entry</td><td><span id="chart5-entry6">—</span></td></tr></tbody>
+</table>
+</div></div><div class="chart-card"><div class="chart-slot" id="chart-6"></div></div><div class="chart-card"><div class="chart-slot" id="chart-7"></div></div><div class="chart-card"><div class="chart-slot" id="chart-8"></div></div><div class="chart-card"><div class="chart-slot" id="chart-9"></div></div><div class="chart-card"><div class="chart-slot" id="chart-10"></div></div><div class="chart-card"><div class="chart-slot" id="chart-11"></div></div><div class="chart-card"><div class="chart-slot" id="chart-12"></div></div><div class="chart-card"><div class="chart-slot" id="chart-13"></div></div><div class="chart-card"><div class="chart-slot" id="chart-14"></div></div><div class="chart-card"><div class="chart-slot" id="chart-15"></div></div></div></div></section>
 <script>
 (function(){
   const MIN_PX = 6;     // allow very small to ensure full visibility
@@ -1437,18 +1761,18 @@
   } else {
     installObservers();
   }
-})();
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
 </script>
-
-
-
-
-
 <script>
 // Reuse existing Google Charts + loadViaJSONP flow, but fetch all cols and read index 92 (Col93)
 
   // Background store for Col87 (time per run) & Col88 (date EST)
-  window.col8788Store = { times: [], dates: [], col94: [], col16: [], col97: null, col97_seconds: null, col97_10: null, col97_10_seconds: null, col97_100: null, col97_100_seconds: null, col97_1000: null, col97_1000_seconds: null, col97_fastest: null, col97_fastest_seconds: null, col97_slowest: null, col97_slowest_seconds: null, col97_total_dhm: null, col97_total_seconds: null, pairs1694: [], loaded: false };
+  window.col8788Store = { times: [], dates: [], col94: [], col16: [], col97: null, col97_seconds: null, col97_10: null, col97_10_seconds: null, col97_100: null, col97_100_seconds: null, col97_1000: null, col97_1000_seconds: null, col97_fastest: null, col97_fastest_seconds: null, col97_slowest: null, col97_slowest_seconds: null, col97_total_dhm: null, col97_total_seconds: null, pairs1694: [], time_nether: [], loaded: false };
 
   (function(){
   function startAutoFill(){
@@ -1507,19 +1831,24 @@ window.handleRunsTop5 = function(response){
     if (cell && !cell.textContent.trim()) cell.textContent = '—';
     if (typeof window.updateStats === 'function') window.updateStats();
   }
-};
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+;
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startAutoFill);
   } else {
     startAutoFill();
   }
-})();
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
 </script>
-
-
-
-
-
 <script>
 (function(){
   function toNumber(text){
@@ -1561,16 +1890,13 @@ if (document.readyState === 'loading') {
   } else {
     setTimeout(window.updateStats, 50);
   }
-})();
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
 </script>
-
-
-
-
-
-
-
-
 <script>
 (function(){
   function getInnerWidth(el){
@@ -1600,30 +1926,34 @@ if (document.readyState === 'loading') {
     el.style.fontSize = best + "px";
   }
 
-  function fitAllTitles(){
-    document.querySelectorAll(".chart-slot h3").forEach(maximizeSingleLine);
-  }
+  function fitChart2Title(){
+  // Only resize Chart-2's title; leave others (e.g., Chart-1) alone
+  document.querySelectorAll("#chart-2 h3").forEach(maximizeSingleLine);
+}
 
   // Keep the title maximized as container resizes or layout changes
   function installObservers(){
     const chart2 = document.getElementById("chart-2");
     if (chart2 && "ResizeObserver" in window) {
-      const ro = new ResizeObserver(() => fitAllTitles());
+      const ro = new ResizeObserver(() => fitChart2Title());
       ro.observe(chart2);
     } else {
-      window.addEventListener("resize", fitAllTitles);
+      window.addEventListener("resize", fitChart2Title);
     }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => { fitAllTitles(); installObservers(); });
+    document.addEventListener("DOMContentLoaded", () => { fitChart2Title(); installObservers(); });
   } else {
-    fitAllTitles(); installObservers();
+    fitChart2Title(); installObservers();
   }
-})();
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
 </script>
-
-
 <script>
 // === BEGIN handleCols8788 (group & average by EST date) ===
 window.handleCols8788 = function(response) {
@@ -1639,12 +1969,14 @@ window.handleCols8788 = function(response) {
     const c88 = 87; // zero-based index for column 88 (date played EST)
     const c94 = 93; // zero-based index for column 94
     const c16 = 15; // zero-based index for column 16 (h:mm:ss.mmm)
+    const c9 = 8;  // zero-based index for column 9 (time_nether)
     if (c87 >= cols || c88 >= cols) {
       console.error("[Cols87/88] Missing expected columns. Available:", cols);
       return;
     }
 
     const times = [];
+    const time_nether = [];
     const dates = [];
     const col94 = [];
     const col16 = [];
@@ -1654,6 +1986,7 @@ window.handleCols8788 = function(response) {
       const d = dt.getValue(r, c88);
       const v94 = dt.getValue(r, c94);
       const v16 = dt.getValue(r, c16);
+      const v9 = (c9 < cols) ? dt.getValue(r, c9) : null;
       if (t != null) times.push(String(t));
       if (d != null) dates.push(String(d));
       if (v94 != null) col94.push(String(v94));
@@ -1670,17 +2003,45 @@ window.handleCols8788 = function(response) {
       col16.push(str16);
       pairs1694.push({ t16: str16, c94: (v94 == null ? null : String(v94)) });
     }
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
 }
+
 
     console.log("[Cols87] first 3:", times.slice(0,3));
     console.log("[Cols88] first 3:", dates.slice(0,3));
 
-    if (!window.col8788Store) window.col8788Store = { times: [], dates: [], col94: [], col16: [], col97: null, col97_seconds: null, col97_10: null, col97_10_seconds: null, col97_100: null, col97_100_seconds: null, col97_1000: null, col97_1000_seconds: null, col97_fastest: null, col97_fastest_seconds: null, col97_slowest: null, col97_slowest_seconds: null, col97_total_dhm: null, col97_total_seconds: null, pairs1694: [], loaded: false };
+    if (!window.col8788Store) window.col8788Store = { times: [], dates: [], col94: [], col16: [], col97: null, col97_seconds: null, col97_10: null, col97_10_seconds: null, col97_100: null, col97_100_seconds: null, col97_1000: null, col97_1000_seconds: null, col97_fastest: null, col97_fastest_seconds: null, col97_slowest: null, col97_slowest_seconds: null, col97_total_dhm: null, col97_total_seconds: null, pairs1694: [], time_nether: [], loaded: false };
     window.col8788Store.times = times;
     window.col8788Store.dates = dates;
     window.col8788Store.col94 = col94;
         window.col8788Store.col16 = col16;
     window.col8788Store.pairs1694 = pairs1694;
+    window.col8788Store.time_nether = time_nether;
+    function fmtTimeNether(val){
+      if (val == null) return null;
+      var d = null;
+      if (val instanceof Date) {
+        d = val;
+      } else if (typeof val === 'number') {
+        // Sheets number as fraction-of-day
+        d = new Date(Math.round(val * 86400) * 1000);
+      } else if (typeof val === 'string') {
+        var tryDate = new Date(val);
+        if (!isNaN(tryDate)) d = tryDate;
+      }
+      if (d) {
+        var h = d.getHours();
+        var m = String(d.getMinutes()).padStart(2,'0');
+        var s = String(d.getSeconds()).padStart(2,'0');
+        var ms = String(d.getMilliseconds()).padStart(3,'0');
+        return h + ':' + m + ':' + s + '.' + ms;
+      }
+      return String(val);
+    }
+    console.log("[Col9 time_nether] first 5:", time_nether.slice(0,5));
 window.col8788Store.loaded = true;
 
     function parseHMS(str) {
@@ -1700,6 +2061,28 @@ window.col8788Store.loaded = true;
       const m = Math.floor(rem / 60);
       const s = rem % 60;
       return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+
+    // Format any value into 'h:mm:ss.mmm'
+    function fmtHMSmsFromVal(val){
+      if (val == null) return null;
+      var d = null;
+      if (val instanceof Date) {
+        d = val;
+      } else if (typeof val === 'number' && isFinite(val)) {
+        // Treat as fraction-of-day to milliseconds
+        var ms = Math.round(val * 86400 * 1000);
+        d = new Date(ms);
+      } else if (typeof val === 'string') {
+        var tryDate = new Date(val);
+        if (!isNaN(tryDate)) d = tryDate;
+      }
+      if (!d) return null;
+      var h = d.getHours();
+      var m = String(d.getMinutes()).padStart(2,'0');
+      var s = String(d.getSeconds()).padStart(2,'0');
+      var ms = String(d.getMilliseconds()).padStart(3,'0');
+      return h + ':' + m + ':' + s + '.' + ms;
     }
 
     const groups = new Map();
@@ -1744,11 +2127,14 @@ window.col8788Store.loaded = true;
   } catch (e) {
     console.error("[Cols87/88] handler error:", e);
   }
-};
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+;
 
     // Patched Chart 2 population block will be inserted below </script>
-
-
 <script>
 // Fill the first N rows of Chart 2 from window.col8788AveragesByDate
 function populateChart2TopN(n = 5){
@@ -1775,10 +2161,13 @@ cells[0].textContent = String(item.displayDate || '—');  // Date
   } catch(e){
     console.error("[Chart2 Populate] error:", e);
   }
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
 }
+
 </script>
-
-
 <script>
 // Shrink-to-fit utility specifically for Chart 2 cells
 (function(){
@@ -1827,12 +2216,414 @@ cells[0].textContent = String(item.displayDate || '—');  // Date
       });
     });
   }
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
+</script>
+<script>
+(function(){
+  // Parse time formats seen in Col87 ("h:mm:ss" or Date/number edge cases)
+  function parseToSeconds(v){
+    if (v == null) return null;
+    if (v instanceof Date){
+      return v.getHours()*3600 + v.getMinutes()*60 + v.getSeconds() + (v.getMilliseconds()||0)/1000;
+    }
+    if (typeof v === 'number' && isFinite(v)){
+      // Google Sheets day-fraction -> seconds
+      if (v > 0 && v < 2) return v * 86400;
+      return v; // assume already seconds
+    }
+    var s = String(v).trim();
+    // sometimes looks like "0:12:34" or "00:12:34.5"
+    var m = s.match(/^(\d+):([0-5]?\d):([0-5]?\d)(?:\.(\d{1,3}))?$/);
+    if (m){
+      var h = parseInt(m[1],10), mi = parseInt(m[2],10), se = parseInt(m[3],10);
+      var ms = m[4] ? parseInt((m[4] + '000').slice(0,3),10) : 0;
+      return h*3600 + mi*60 + se + ms/1000;
+    }
+    // sometimes looks like "00:12:34 — XX" (defensive)
+    var parts = s.split(' ').shift();
+    var m2 = parts && parts.match(/^(\d+):([0-5]?\d):([0-5]?\d)$/);
+    if (m2){
+      var h2 = parseInt(m2[1],10), mi2 = parseInt(m2[2],10), se2 = parseInt(m2[3],10);
+      return h2*3600 + mi2*60 + se2;
+    }
+    return null;
+  }
+  function fmtHMS(sec){
+    if (sec == null || !isFinite(sec)) return '—';
+    var s = Math.max(0, sec);
+    var h = Math.floor(s/3600); s -= h*3600;
+    var m = Math.floor(s/60); s -= m*60;
+    var ss = Math.floor(s + 1e-6);
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    return h + ':' + pad2(m) + ':' + pad2(ss);
+  }
+  function fmtDate(v){
+    if (v == null) return '—';
+    if (v instanceof Date){
+      var y=v.getFullYear(), m=v.getMonth()+1, d=v.getDate();
+      function pad2(n){ return String(n).padStart(2,'0'); }
+      return pad2(m) + '/' + pad2(d) + '/' + y;
+    }
+    // allow ISO or MM/DD/YYYY to pass through
+    
+        var str = String(v).trim();
+        // Try to detect ISO or MM/DD/YYYY HH:MM:SS and strip time if present
+        if (/^\d{4}-\d{2}-\d{2}T/.test(str)){
+          // ISO string with time
+          var d = new Date(str);
+          if (!isNaN(d)) return (('0'+(d.getMonth()+1)).slice(-2) + '/' + ('0'+d.getDate()).slice(-2) + '/' + d.getFullYear());
+        }
+        // If looks like MM/DD/YYYY HH:MM:SS just take first 10 chars
+        if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) return str.slice(0,10);
+        return str;
+        
+  }
+
+  // Handler for JSONP: read col 87 (time), 93 (run number), 88 (date EST)
+  window.handleTop10Chart4 = function(response){
+    try{
+      if (!response || response.status !== 'ok') {
+        console.error('[Chart-4 Top10] response not ok:', response);
+        return;
+      }
+      var dt = new google.visualization.DataTable(response.table);
+      var rows = dt.getNumberOfRows();
+      var cols = dt.getNumberOfColumns();
+      var C_TIME = 86; // col 87 zero-based
+      var C_DATE = 87; // col 88
+      var C_RUN  = 92; // col 93
+      if (C_TIME >= cols || C_DATE >= cols || C_RUN >= cols){
+        console.error('[Chart-4 Top10] missing expected columns:', cols);
+        return;
+      }
+      var items = [];
+      for (var r=1; r<rows; r++){ // skip first data row, consistent with other handlers
+        var t = dt.getValue(r, C_TIME);
+        var d = dt.getValue(r, C_DATE);
+        var run = dt.getValue(r, C_RUN);
+        var secs = parseToSeconds(t);
+        // normalize run as integer when string like "12,345"
+        var runNum = null;
+        if (typeof run === 'number') runNum = run;
+        else if (typeof run === 'string'){
+          var num = parseInt(run.replace(/,/g,''), 10);
+          if (!isNaN(num)) runNum = num;
+        }
+        if (secs != null && isFinite(secs) && runNum != null){
+          items.push({ seconds: secs, timeStr: fmtHMS(secs), run: runNum, dateStr: fmtDate(d) });
+        }
+      }
+      // sort ascending (fastest first)
+      items.sort(function(a,b){ return a.seconds - b.seconds; });
+      var top = items.slice(0, 10);
+
+      // Populate chart-4 table
+      var tbody = document.querySelector('#chart-4 table.runs-table tbody');
+      if (!tbody){
+        console.warn('[Chart-4 Top10] tbody not found');
+        return;
+      }
+      var rowsDom = tbody.querySelectorAll('tr');
+      for (var i=0; i<10; i++){
+        var tr = rowsDom[i] || null;
+        var cells = tr ? tr.querySelectorAll('td') : null;
+        var row = top[i];
+        if (cells && cells.length >= 3){
+          // Day (Date), Time, Run — keep centered via inline style
+          cells[0].textContent = row ? row.dateStr : '—';
+          cells[1].textContent = row ? row.timeStr : '—';
+          cells[2].textContent = row ? String(row.run) : '—';
+        }
+      }
+      console.log('[Chart-4 Top10] populated', top);
+    }catch(e){
+      console.error('[Chart-4 Top10] error:', e);
+    }
+  };
+
+  // Boot loader: wait for chartsReady & loadViaJSONP, then fetch
+  (function boot(){
+    function ready(){
+      try{
+        return (typeof google !== 'undefined' && google.visualization)
+               && (typeof chartsReady !== 'undefined' && chartsReady === true)
+               && (typeof loadViaJSONP === 'function');
+      }catch(e){ return false; }
+    }
+    function start(){
+      try{
+        // fetch ALL cols so indices are stable
+        loadViaJSONP(GID_PROCESSED, 'handleTop10Chart4', 'select *');
+      }catch(e){
+        console.error('[Chart-4 Top10] loadViaJSONP failed:', e);
+      }
+    }
+    if (ready()) start();
+    else {
+      var tries = 0, max = 600;
+      var iv = setInterval(function(){
+        if (ready() || ++tries >= max){
+          clearInterval(iv);
+          if (ready()) start();
+        }
+      }, 200);
+      setTimeout(function(){ clearInterval(iv); }, 130000);
+    }
+  })();
+})();
+</script>
+
+<script>
+// === Stable dynamic table/text fitting for Chart-3 and Chart-4 (debounced, no layout thrash) ===
+(function(){
+  const MIN_PX = 10;
+  const MAX_PX = 18;
+  const EPS = 0.5;
+
+  function fitCell(el, minPx=MIN_PX, maxPx=MAX_PX){
+    if (!el) return;
+    if (el.dataset.fitting === "1") return;
+    el.dataset.fitting = "1";
+
+    const prevWS = el.style.whiteSpace;
+    el.style.whiteSpace = 'nowrap';
+
+    let lo = minPx, hi = maxPx, best = minPx;
+    // Binary search for max size that fits once; avoid repeated writes
+    for (let i=0;i<18;i++){
+      const mid = (lo + hi) / 2;
+      el.style.fontSize = mid + 'px';
+      const fits = el.scrollWidth <= el.clientWidth + EPS;
+      if (fits){ best = mid; lo = mid; } else { hi = mid; }
+      if (Math.abs(hi - lo) < 0.25) break;
+    }
+
+    // Only apply if changed significantly
+    const current = parseFloat((el.style.fontSize || maxPx).toString());
+    if (Math.abs(current - best) > 0.2){
+      el.style.fontSize = best + 'px';
+    }
+    el.style.whiteSpace = prevWS;
+    el.dataset.fitting = "";
+  }
+
+  function stableFitTitle(title){
+    if (!title) return;
+    const slot = title.parentElement;
+    if (!slot) return;
+    const lastWidth = parseFloat(title.dataset.lastSlotWidth || "-1");
+    const w = slot.clientWidth || 0;
+    // Only recompute if width actually changed
+    if (Math.abs(w - lastWidth) < 1) return;
+
+    title.dataset.lastSlotWidth = String(w);
+    const prevWS = title.style.whiteSpace;
+    title.style.whiteSpace = 'nowrap';
+    let lo = 10, hi = 36, best = lo;
+    for (let i=0;i<20;i++){
+      const mid = (lo + hi) / 2;
+      title.style.fontSize = mid + 'px';
+      const fits = title.scrollWidth <= w + EPS;
+      if (fits){ best = mid; lo = mid; } else { hi = mid; }
+      if (Math.abs(hi-lo) < 0.25) break;
+    }
+    title.style.fontSize = best + 'px';
+    title.style.whiteSpace = prevWS;
+  }
+
+  function fitTable(containerId){
+    const root = document.querySelector(containerId + ' .runs-table');
+    if (!root) return;
+    // Fit headers then cells
+    root.querySelectorAll('th, td').forEach(c => fitCell(c));
+    // Fit local title if present
+    stableFitTitle(document.querySelector(containerId + ' .runs-title'));
+  }
+
+  function debounce(fn, ms){ let t; return function(){ clearTimeout(t); t=setTimeout(fn, ms); }; }
+
+  function install(containerId){
+    const container = document.querySelector(containerId);
+    if (!container) return;
+
+    const doFit = debounce(() => fitTable(containerId), 60);
+
+    // ResizeObserver: only refit on actual size change (width/height)
+    let lastW = -1, lastH = -1;
+    if ('ResizeObserver' in window){
+      const ro = new ResizeObserver(() => {
+        const r = container.getBoundingClientRect();
+        if (Math.abs(r.width - lastW) > 1 || Math.abs(r.height - lastH) > 1){
+          lastW = r.width; lastH = r.height;
+          doFit();
+        }
+      });
+      ro.observe(container);
+      const table = container.querySelector('.runs-table');
+      if (table) ro.observe(table);
+    } else {
+      window.addEventListener('resize', doFit);
+    }
+
+    // MutationObserver: watch content changes, NOT attributes (to avoid feedback on style changes)
+    const table = container.querySelector('.runs-table') || container;
+    const mo = new MutationObserver(doFit);
+    mo.observe(table, { subtree: true, characterData: true, childList: true });
+
+    // Initial fit
+    requestAnimationFrame(doFit);
+    window.addEventListener('load', doFit);
+  }
+
+  // Install on Chart-3, Chart-4, and Chart-5
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      install('#chart-3');
+      install('#chart-4');
+    install('#chart-5');
+      install('#chart-5');
+    }, { once:true });
+  } else {
+    install('#chart-3');
+    install('#chart-4');
+    install('#chart-5');
+  }
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
+</script>
+
+
+<script>
+(function(){
+  const pill  = document.getElementById('twitch-live-pill');
+  const dot   = document.getElementById('twitch-live-dot');
+  const label = document.getElementById('twitch-live-text');
+
+  async function checkLive(){
+    try{
+      const res  = await fetch('https://decapi.me/twitch/uptime/couriway', { cache: 'no-store' });
+      const text = (await res.text()).trim().toLowerCase();
+      const isLive = res.ok && text && !text.includes('offline');
+
+      pill.classList.toggle('is-live', isLive);
+      pill.classList.toggle('is-off', !isLive);
+
+      label.textContent = isLive ? 'LIVE' : 'Offline';
+      pill.title = isLive ? 'Couriway is live on Twitch' : 'Couriway is offline on Twitch';
+    }catch(e){
+      pill.classList.remove('is-live','is-off');
+      label.textContent = 'Status unavailable';
+      pill.title = 'Unable to fetch Twitch status';
+    }
+  }
+
+  checkLive();
+  setInterval(checkLive, 60000);
+})();
+</script>
+
+
+<script>
+// === Chart-5: Nether Entries metrics ===
+(function(){
+  function parseHMSms(str){
+    if (!str) return null;
+    const m = String(str).trim().match(/^(\d+):([0-5]?\d):([0-5]?\d)\.(\d{1,3})$/);
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    const s = parseInt(m[3], 10);
+    const ms = parseInt(m[4].padEnd(3,'0'), 10);
+    return h*3600 + mi*60 + s + ms/1000;
+  }
+  function fmtHMSms(total){
+    if (total == null || isNaN(total)) return '—';
+    const h = Math.floor(total / 3600);
+    const rem = total - h*3600;
+    const m = Math.floor(rem / 60);
+    const s = Math.floor(rem - m*60);
+    const ms = Math.round((total - Math.floor(total)) * 1000);
+    return h + ":" + String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0") + "." + String(ms).padStart(3,"0");
+  }
+  function averageSeconds(arr){
+    if (!arr.length) return null;
+    let sum = 0, count = 0;
+    for (let i=0;i<arr.length;i++){
+      const v = parseHMSms(arr[i]);
+      if (v != null){ sum += v; count++; }
+    }
+    return count ? (sum / count) : null;
+  }
+  function computeChart5(){
+    try{
+      const store = window.col8788Store || {};
+      if (!store.loaded) return false;
+      const times = Array.isArray(store.time_nether) ? store.time_nether : [];
+      const flags = Array.isArray(store.col94) ? store.col94 : [];
+      if (!times.length) return true; // no data but stop retry
+      // 1) Averages excluding rows where col94 === "false"
+      const keepIdx = [];
+      for (let i=0;i<times.length;i++){
+        const f = (flags[i]==null ? "" : String(flags[i])).trim().toLowerCase();
+        if (f !== "true") keepIdx.push(i);
+      }
+      const keptTimes = keepIdx.map(i => times[i]);
+      // Overall average
+      const avgAll = averageSeconds(keptTimes);
+      const el1 = document.getElementById("chart5-entry1");
+      if (el1) el1.textContent = fmtHMSms(avgAll);
+      // Last 10 / 100 / 1000 from kept order (first N like Chart-3 convention)
+      function sliceN(list, n){ return list.slice(0, Math.min(n, list.length)); }
+      const avg10   = averageSeconds(sliceN(keptTimes, 10));
+      const avg100  = averageSeconds(sliceN(keptTimes, 100));
+      const avg1000 = averageSeconds(sliceN(keptTimes, 1000));
+      const el2 = document.getElementById("chart5-entry2");
+      const el3 = document.getElementById("chart5-entry3");
+      const el4 = document.getElementById("chart5-entry4");
+      if (el2) el2.textContent = fmtHMSms(avg10);
+      if (el3) el3.textContent = fmtHMSms(avg100);
+      if (el4) el4.textContent = fmtHMSms(avg1000);
+      // 2) Fastest / Slowest excluding the bottom 3000 rows of column 9
+      const cutoff = Math.max(0, times.length - 3000);
+      const trimmed = times.slice(0, cutoff);
+      let fastest = null, slowest = null;
+      for (let i=0;i<trimmed.length;i++){
+        const v = parseHMSms(trimmed[i]);
+        if (v == null) continue;
+        if (fastest == null || v < fastest) fastest = v;
+        if (slowest == null || v > slowest) slowest = v;
+      }
+      const el5 = document.getElementById("chart5-entry5");
+      const el6 = document.getElementById("chart5-entry6");
+      if (el5) el5.textContent = fmtHMSms(fastest);
+      if (el6) el6.textContent = fmtHMSms(slowest);
+      console.log("[Chart-5] avgAll:", fmtHMSms(avgAll), "avg10:", fmtHMSms(avg10), "avg100:", fmtHMSms(avg100), "avg1000:", fmtHMSms(avg1000), "fastest (cutoff3000):", fmtHMSms(fastest), "slowest (cutoff3000):", fmtHMSms(slowest));
+      // Trigger a resize/fitting pass
+      try{ if (typeof window !== 'undefined' && window.dispatchEvent){ window.dispatchEvent(new Event('resize')); } }catch(_e){}
+      return true;
+    }catch(e){
+      console.error("[Chart-5] compute error:", e);
+      return true; // stop retries on code error
+    }
+  }
+  if (!computeChart5()){
+    const iv = setInterval(function(){ if (computeChart5()) clearInterval(iv); }, 200);
+    setTimeout(function(){ clearInterval(iv); }, 15000);
+  }
 })();
 </script>
 
 </body>
 </html>
-
 <script>
 (function(){
   function logOnce(){
@@ -1850,10 +2641,13 @@ cells[0].textContent = String(item.displayDate || '—');  // Date
     }, 200);
     setTimeout(function(){ clearInterval(iv); }, 15000);
   }
-})();
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
 </script>
-
-
 <script>
 (function(){
   
@@ -1968,5 +2762,10 @@ function toSecondsFromCol16(val){
     var iv = setInterval(function(){ if (compute()) clearInterval(iv); }, 200);
     setTimeout(function(){ clearInterval(iv); }, 15000);
   }
-})();
+      if (v9 != null) {
+        var tn = fmtHMSmsFromVal(v9);
+        if (tn != null) time_nether.push(tn);
+      }
+}
+)();
 </script>
